@@ -28,7 +28,7 @@ CHUNK_SIZE = int(os.getenv("ATLASAI_CHUNK_SIZE", "800"))
 CHUNK_OVERLAP = int(os.getenv("ATLASAI_CHUNK_OVERLAP", "150"))
 
 # OneNote configuration
-ENABLE_ONENOTE = os.getenv("ENABLE_ONENOTE", "false").lower() in ("true", "1", "yes")
+ENABLE_ONENOTE = os.getenv("ENABLE_ONENOTE", "true").lower() in ("true", "1", "yes")
 ONENOTE_RUNBOOK_PATH = os.getenv(
     "ONENOTE_RUNBOOK_PATH",
     r"\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook"

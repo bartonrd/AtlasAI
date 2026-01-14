@@ -238,7 +238,7 @@ Configure the Python runtime using environment variables:
 
 AtlasAI can ingest Microsoft OneNote documents using the OneNote COM API:
 
-- `ENABLE_ONENOTE` - Enable OneNote document ingestion (default: `false`, set to `true` to enable)
+- `ENABLE_ONENOTE` - Enable OneNote document ingestion (default: `true`, set to `false` to disable)
 - `ONENOTE_RUNBOOK_PATH` - UNC or local path to OneNote files (default: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`)
 
 **Requirements:**
@@ -256,10 +256,9 @@ AtlasAI can ingest Microsoft OneNote documents using the OneNote COM API:
 
 Example:
 ```bash
-# Windows (PowerShell)
+# Windows (PowerShell) - with custom OneNote path
 $env:ATLASAI_EMBEDDING_MODEL="D:\models\embeddings"
 $env:ATLASAI_TEXT_GEN_MODEL="D:\models\flan-t5-small"
-$env:ENABLE_ONENOTE="true"
 $env:ONENOTE_RUNBOOK_PATH="\\server\share\OneNote\Runbook"
 python -m atlasai_runtime
 
@@ -305,19 +304,23 @@ Place PDF or DOCX files in the `documents/` folder. The runtime will automatical
 
 ### Adding OneNote Documents (Windows Only)
 
-**Important:** OneNote ingestion is **disabled by default**. You must explicitly enable it.
+**Important:** OneNote ingestion is **enabled by default** on Windows systems with the default UNC path configured.
 
-To ingest OneNote documents:
+To customize OneNote document ingestion:
 
-1. **Enable the feature**: Set the environment variable `ENABLE_ONENOTE=true`
-2. **Configure the path**: Set `ONENOTE_RUNBOOK_PATH` to point to your OneNote files (optional - defaults to the Model Manager Runbook UNC path)
+1. **Disable the feature** (optional): Set the environment variable `ENABLE_ONENOTE=false` to disable
+2. **Configure the path** (optional): Set `ONENOTE_RUNBOOK_PATH` to point to your OneNote files (defaults to the Model Manager Runbook UNC path)
 3. **Ensure OneNote is installed**: OneNote 2016 or Office 365 must be installed on your Windows machine
 4. **Start/restart the runtime**: The ingestion happens when the runtime starts
 
-Example (Windows PowerShell):
+Example to customize (Windows PowerShell):
 ```powershell
-$env:ENABLE_ONENOTE="true"
+# To use a custom path (feature is enabled by default)
 $env:ONENOTE_RUNBOOK_PATH="\\server\share\path\to\onenote"
+python -m atlasai_runtime
+
+# To disable OneNote ingestion
+$env:ENABLE_ONENOTE="false"
 python -m atlasai_runtime
 ```
 
@@ -336,7 +339,7 @@ The system will:
 **Note:** 
 - OneNote ingestion happens during runtime initialization (when loading documents for a query)
 - If the OneNote COM API is unavailable or files are inaccessible, the system will log warnings and continue without OneNote documents
-- If you don't see OneNote pages being loaded, check that `ENABLE_ONENOTE=true` is set correctly
+- To disable OneNote ingestion, set `ENABLE_ONENOTE=false`
 
 ## Troubleshooting
 
@@ -354,12 +357,12 @@ The system will:
 - Verify PDF/DOCX files exist in the `documents/` folder
 - Check that file paths are correct
 - Ensure PDFs contain extractable text (not scanned images without OCR)
-- If using OneNote, verify `ENABLE_ONENOTE=true` and `ONENOTE_RUNBOOK_PATH` is set correctly
+- If using OneNote, verify `ONENOTE_RUNBOOK_PATH` is set correctly
 
 ### OneNote documents not being ingested
-**Most common issue: OneNote is disabled by default!**
+**Note: OneNote is enabled by default, but may fail if prerequisites aren't met.**
 
-1. **Check if enabled**: Verify `ENABLE_ONENOTE` environment variable is set to `true` (not just "True" or "1", though those work too)
+1. **Check if disabled**: Verify `ENABLE_ONENOTE` environment variable is not set to `false`
 2. **Check the logs**: Look for these messages during runtime startup or when making a query:
    - `OneNote ingestion enabled. Loading from: <path>` - means it's trying to load
    - `Successfully loaded X OneNote pages` - means it worked!
@@ -373,9 +376,8 @@ The system will:
 
 Example to verify settings:
 ```powershell
-# Check if environment variable is set
+# Check if environment variable is set (should be empty or "true" for enabled)
 echo $env:ENABLE_ONENOTE
-# Should output: true
 
 # Check health endpoint
 curl http://localhost:8000/health
