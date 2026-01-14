@@ -4,6 +4,8 @@ RAG Engine - Core logic for document retrieval and question answering.
 
 import os
 import re
+import logging
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 # Loaders: PDF + DOCX
@@ -28,6 +30,10 @@ from langchain_core.prompts import PromptTemplate
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 from langchain_huggingface import HuggingFacePipeline
 
+# OneNote loader
+from .onenote_loader import ingest_onenote
+
+logger = logging.getLogger(__name__)
 
 class RAGEngine:
     """
@@ -42,6 +48,8 @@ class RAGEngine:
         top_k: int = 4,
         chunk_size: int = 800,
         chunk_overlap: int = 150,
+        enable_onenote: bool = False,
+        onenote_runbook_path: Optional[str] = None,
     ):
         """
         Initialize the RAG engine.
@@ -53,6 +61,8 @@ class RAGEngine:
             top_k: Number of chunks to retrieve
             chunk_size: Size of text chunks
             chunk_overlap: Overlap between chunks
+            enable_onenote: Enable OneNote document ingestion
+            onenote_runbook_path: UNC path to OneNote runbook directory
         """
         self.documents_dir = documents_dir
         self.embedding_model_path = embedding_model
@@ -60,6 +70,8 @@ class RAGEngine:
         self.top_k = top_k
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.enable_onenote = enable_onenote
+        self.onenote_runbook_path = onenote_runbook_path
 
         # Lazy initialization
         self._embeddings = None
@@ -93,7 +105,28 @@ class RAGEngine:
                     elif ext == ".docx":
                         docs.extend(Docx2txtLoader(filepath).load())
                 except Exception as e:
-                    print(f"Warning: Failed to read {filepath}: {e}")
+                    logger.warning(f"Failed to read {filepath}: {e}")
+
+        # Load OneNote documents if enabled
+        if self.enable_onenote and self.onenote_runbook_path:
+            logger.info(f"OneNote ingestion enabled. Loading from: {self.onenote_runbook_path}")
+            try:
+                onenote_path = Path(self.onenote_runbook_path)
+                onenote_docs = ingest_onenote(
+                    onenote_path,
+                    enable_onenote=self.enable_onenote
+                )
+                if onenote_docs:
+                    docs.extend(onenote_docs)
+                    logger.info(f"Successfully loaded {len(onenote_docs)} OneNote pages from {onenote_path}")
+                else:
+                    logger.warning(f"No OneNote documents found at {onenote_path}")
+            except Exception as e:
+                logger.error(f"Failed to load OneNote documents: {e}", exc_info=True)
+        elif self.enable_onenote and not self.onenote_runbook_path:
+            logger.warning("OneNote enabled but ONENOTE_RUNBOOK_PATH is not set")
+        else:
+            logger.debug("OneNote ingestion is disabled")
 
         # Load additional documents
         if additional_paths:
@@ -109,13 +142,15 @@ class RAGEngine:
                     elif ext == ".docx":
                         docs.extend(Docx2txtLoader(path).load())
                 except Exception as e:
-                    print(f"Warning: Failed to read {path}: {e}")
+                    logger.warning(f"Failed to read {path}: {e}")
 
         if missing:
             raise FileNotFoundError(f"Missing files: {', '.join(missing)}")
 
         if not docs:
             raise ValueError("No documents loaded")
+        
+        logger.info(f"Total documents loaded: {len(docs)} (including OneNote pages if enabled)")
 
         return docs
 
@@ -155,6 +190,7 @@ class RAGEngine:
         """
         # Load documents
         docs = self._load_documents(additional_paths)
+        logger.info(f"Loaded {len(docs)} documents for QA chain")
 
         # Split documents
         splitter = RecursiveCharacterTextSplitter(
@@ -163,6 +199,7 @@ class RAGEngine:
             add_start_index=True,
         )
         splits = splitter.split_documents(docs)
+        logger.info(f"Split documents into {len(splits)} chunks")
 
         if not splits:
             raise ValueError("No text chunks produced from documents")
@@ -171,6 +208,7 @@ class RAGEngine:
         embeddings = self._get_embeddings()
         vectorstore = FAISS.from_documents(splits, embeddings)
         retriever = vectorstore.as_retriever(search_kwargs={"k": self.top_k})
+        logger.info(f"Created FAISS vectorstore with {len(splits)} chunks")
 
         # Get LLM
         llm = self._get_llm()

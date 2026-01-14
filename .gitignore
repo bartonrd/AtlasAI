@@ -419,6 +419,7 @@ FodyWeavers.xsd
 
 # Python temporary files and cache
 tmp_docs/
+tmp_onenote/
 __pycache__/
 *.pyc
 *.pyo
