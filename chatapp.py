@@ -50,6 +50,9 @@ TOP_K = 4  # number of chunks retrieved
 CHUNK_SIZE = 800  # reduced from 1000 to fit within model token limits
 CHUNK_OVERLAP = 150
 
+# Chat configuration
+DEFAULT_CHAT_NAME = "New Chat"
+
 # ---------------------------
 # Helpers
 # ---------------------------
@@ -138,7 +141,7 @@ def initialize_session_state():
         # Create initial chat
         initial_id = str(uuid.uuid4())
         st.session_state.chats[initial_id] = {
-            "name": "New Chat",
+            "name": DEFAULT_CHAT_NAME,
             "created_at": datetime.now(),
             "messages": []
         }
@@ -159,7 +162,7 @@ initialize_session_state()
 def generate_chat_name(message: str, max_length: int = 30) -> str:
     """Generate a short chat name from a message"""
     if not message:
-        return "New Chat"
+        return DEFAULT_CHAT_NAME
     
     # Remove extra whitespace and newlines
     clean_msg = " ".join(message.split())
@@ -169,14 +172,20 @@ def generate_chat_name(message: str, max_length: int = 30) -> str:
         return clean_msg
     
     # Truncate and add ellipsis
-    return clean_msg[:max_length].rsplit(' ', 1)[0] + "..."
+    truncated = clean_msg[:max_length]
+    # Try to break at word boundary, but fallback to character truncation if no spaces
+    space_pos = truncated.rfind(' ')
+    if space_pos > 0:
+        return truncated[:space_pos] + "..."
+    else:
+        return truncated + "..."
 
 def create_new_chat():
     """Create a new chat instance"""
     st.session_state.chat_counter += 1
     new_id = str(uuid.uuid4())
     st.session_state.chats[new_id] = {
-        "name": "New Chat",
+        "name": DEFAULT_CHAT_NAME,
         "created_at": datetime.now(),
         "messages": []
     }
@@ -351,7 +360,7 @@ if prompt_text:
     })
     
     # Auto-name chat based on first message if still using default name
-    if len(current_chat["messages"]) == 1 and current_chat["name"] == "New Chat":
+    if len(current_chat["messages"]) == 1 and current_chat["name"] == DEFAULT_CHAT_NAME:
         current_chat["name"] = generate_chat_name(prompt_text)
     
     # Display user message
