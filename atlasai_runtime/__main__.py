@@ -8,16 +8,30 @@ Usage:
 import argparse
 import sys
 
+# Check for critical dependencies
+missing_deps = []
+try:
+    import fastapi
+except ImportError:
+    missing_deps.append("fastapi")
+
 try:
     import uvicorn
 except ImportError:
+    missing_deps.append("uvicorn")
+
+try:
+    import pydantic
+except ImportError:
+    missing_deps.append("pydantic")
+
+if missing_deps:
     print("ERROR: Required dependencies are not installed.")
     print()
-    print("Please install the required Python packages:")
-    print("    pip install -r requirements.txt")
+    print(f"Missing packages: {', '.join(missing_deps)}")
     print()
-    print("Or install the specific missing packages:")
-    print("    pip install fastapi uvicorn pydantic")
+    print("Please install all required Python packages:")
+    print("    pip install -r requirements.txt")
     print()
     sys.exit(1)
 
