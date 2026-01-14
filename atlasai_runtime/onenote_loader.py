@@ -92,6 +92,14 @@ def ingest_onenote(
 
         logger.info(f"Found {len(one_files)} .one files in {runbook_root}")
 
+        # Try to open the parent folder as a notebook
+        # This ensures OneNote knows about all the .one files in the directory
+        try:
+            onenote.OpenHierarchy(str(runbook_root), "", None, 0)
+            logger.debug(f"Opened hierarchy for {runbook_root}")
+        except Exception as e:
+            logger.debug(f"Could not open hierarchy for parent folder: {e}")
+        
         # Process each .one file
         documents = []
         processed_page_ids: Set[str] = set()
@@ -181,8 +189,9 @@ def _process_one_file(
         # This is required for the COM API to work with the file
         try:
             onenote.OpenHierarchy(str(one_file), "", None, 0)
+            logger.debug(f"OpenHierarchy succeeded for {one_file.name}")
         except Exception as e:
-            logger.debug(f"OpenHierarchy note for {one_file.name}: {e}")
+            logger.debug(f"OpenHierarchy failed for {one_file.name}: {e}")
             # Continue anyway - file might already be open
         
         # Get hierarchy for this notebook/section
@@ -254,7 +263,7 @@ def _process_one_file(
                 continue
 
     except Exception as e:
-        logger.error(f"Failed to get hierarchy for {one_file}: {e}")
+        logger.error(f"Failed to get hierarchy for {one_file}: {type(e).__name__}: {e}")
 
     return documents
 
