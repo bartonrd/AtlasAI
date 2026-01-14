@@ -72,7 +72,10 @@ namespace AtlasAI
                 {
                     if (!string.IsNullOrEmpty(e.Data))
                     {
-                        Console.WriteLine($"[Runtime Error] {e.Data}");
+                        // Python logging and uvicorn write INFO/DEBUG logs to stderr by default
+                        // Only label as error if it actually indicates an error
+                        string prefix = IsErrorMessage(e.Data) ? "[Runtime Error] " : "[Runtime] ";
+                        Console.WriteLine($"{prefix}{e.Data}");
                     }
                 };
 
@@ -129,6 +132,47 @@ namespace AtlasAI
         /// Checks if the runtime process is still running.
         /// </summary>
         public bool IsRunning => _process != null && !_process.HasExited;
+
+        /// <summary>
+        /// Determines if a log message indicates an actual error.
+        /// Python logging and uvicorn write INFO/DEBUG logs to stderr by default.
+        /// </summary>
+        private static bool IsErrorMessage(string message)
+        {
+            if (string.IsNullOrEmpty(message))
+            {
+                return false;
+            }
+
+            // Check for actual error indicators
+            string lowerMessage = message.ToLowerInvariant();
+            
+            // Explicit error keywords
+            if (lowerMessage.Contains("error") || 
+                lowerMessage.Contains("exception") || 
+                lowerMessage.Contains("traceback") ||
+                lowerMessage.Contains("failed") ||
+                lowerMessage.Contains("fatal"))
+            {
+                // But exclude INFO/DEBUG level messages that happen to contain "error" in them
+                if (lowerMessage.Contains("info:") || 
+                    lowerMessage.Contains("debug:") ||
+                    lowerMessage.Contains("- info -") ||
+                    lowerMessage.Contains("- debug -"))
+                {
+                    return false;
+                }
+                return true;
+            }
+
+            // Check for WARNING level (these should be marked but not as errors)
+            if (lowerMessage.Contains("warning") || lowerMessage.Contains("- warning -"))
+            {
+                return false; // Warnings are not errors
+            }
+
+            return false;
+        }
 
         public void Dispose()
         {
