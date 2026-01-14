@@ -18,6 +18,14 @@ namespace AtlasAI
                 // Get the directory where the executable is running
                 string? executableDir = AppContext.BaseDirectory;
                 
+                if (string.IsNullOrEmpty(executableDir))
+                {
+                    Console.WriteLine("ERROR: Could not determine application directory.");
+                    Console.WriteLine("Press any key to exit...");
+                    Console.ReadKey();
+                    return;
+                }
+                
                 // Navigate up to the solution root (where chatapp.py is located)
                 // From: AtlasAI/bin/Debug/net10.0/ to AtlasAI/ (up 3 levels)
                 string solutionRoot = Path.GetFullPath(Path.Combine(executableDir, "..", "..", "..", ".."));
