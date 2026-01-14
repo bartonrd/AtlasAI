@@ -79,7 +79,14 @@ def ingest_onenote(
     try:
         # Initialize OneNote COM object
         try:
-            onenote = win32com.client.Dispatch("OneNote.Application")
+            # Try early binding first (recommended for better type information)
+            try:
+                onenote = win32com.client.gencache.EnsureDispatch("OneNote.Application")
+                logger.debug("OneNote COM initialized with early binding")
+            except:
+                # Fall back to late binding
+                onenote = win32com.client.Dispatch("OneNote.Application")
+                logger.debug("OneNote COM initialized with late binding")
         except Exception as e:
             logger.warning(f"Failed to initialize OneNote COM API: {e}. Skipping OneNote ingestion.")
             return []
@@ -197,7 +204,15 @@ def _process_one_file(
         # Get ALL notebooks hierarchy first, then find our section
         # Individual .one files are sections, not notebooks
         # We need to get the full hierarchy and find the section by path
-        all_hierarchy_xml = onenote.GetHierarchy("", HS_PAGES)
+        try:
+            # Try calling GetHierarchy with empty string to get all notebooks
+            all_hierarchy_xml = onenote.GetHierarchy("", HS_PAGES)
+        except AttributeError as e:
+            # GetHierarchy might not be available, try with win32com dynamic dispatch
+            logger.error(f"GetHierarchy not available on OneNote COM object: {e}")
+            logger.error(f"Available methods: {dir(onenote)}")
+            raise
+        
         all_root = ET.fromstring(all_hierarchy_xml)
         
         # Define namespace for OneNote XML
