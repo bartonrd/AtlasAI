@@ -122,6 +122,8 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
     # Extract text content from properties
     text_content = []
     title_found = False
+    authors = set()  # Track authors to avoid duplicates
+    metadata = {}
     
     try:
         properties = one_file.get_properties()
@@ -132,7 +134,7 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
                     val = prop.get('val', {})
                     
                     if isinstance(val, dict):
-                        # Extract title strings
+                        # Extract title strings (show only once)
                         if 'CachedTitleString' in val or 'CachedTitleStringFromPage' in val:
                             title = val.get('CachedTitleString') or val.get('CachedTitleStringFromPage')
                             if title and isinstance(title, str) and title.strip():
@@ -143,48 +145,62 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
                                     content_lines.append("")
                                     title_found = True
                         
-                        # Extract text run data (actual page content)
-                        if 'TextRunData' in val:
-                            text_data = val.get('TextRunData')
-                            if text_data:
-                                # TextRunData can be bytes or string
-                                if isinstance(text_data, bytes):
-                                    try:
-                                        text_str = text_data.decode('utf-16-le', errors='ignore').strip()
-                                        if text_str:
-                                            text_content.append(text_str)
-                                    except (UnicodeDecodeError, AttributeError):
-                                        try:
-                                            text_str = text_data.decode('utf-8', errors='ignore').strip()
-                                            if text_str:
-                                                text_content.append(text_str)
-                                        except (UnicodeDecodeError, AttributeError):
-                                            pass
-                                elif isinstance(text_data, str) and text_data.strip():
-                                    text_content.append(text_data.strip())
-                        
-                        # Extract other string properties that might contain text
+                        # Extract all string values that might contain text content
+                        # Exclude known metadata fields and process them separately
                         for key, value in val.items():
-                            if key in ['Author', 'LastModifiedBy', 'CreatedBy', 'Subject', 'Keywords']:
+                            # Handle metadata fields specially
+                            if key in ['Author', 'LastModifiedBy', 'CreatedBy']:
                                 if value and isinstance(value, str) and value.strip():
-                                    content_lines.append(f"{key}: {value.strip()}")
+                                    if key == 'Author':
+                                        authors.add(value.strip())
+                                    else:
+                                        metadata[key] = value.strip()
+                            elif key in ['Subject', 'Keywords', 'Category']:
+                                if value and isinstance(value, str) and value.strip():
+                                    metadata[key] = value.strip()
+                            # Extract actual text content from string properties
+                            elif isinstance(value, str) and value.strip():
+                                # Skip properties that are clearly not content
+                                if not any(skip in key.lower() for skip in [
+                                    'guid', 'id', 'color', 'style', 'format', 'index', 
+                                    'offset', 'time', 'date', 'path', 'url', 'reference'
+                                ]):
+                                    # This might be actual text content
+                                    text = value.strip()
+                                    # Only add if it looks like real content (not just a single word or ID)
+                                    if len(text) > 2 and not text.isdigit():
+                                        # Avoid adding the same text multiple times
+                                        if text not in text_content:
+                                            text_content.append(text)
     except Exception as e:
         content_lines.append(f"Error extracting text content: {e}")
     
+    # Add metadata (authors only once)
+    if authors:
+        author_list = sorted(list(authors))
+        if len(author_list) == 1:
+            content_lines.append(f"Author: {author_list[0]}")
+        else:
+            content_lines.append(f"Authors: {', '.join(author_list)}")
+    
+    for key, value in sorted(metadata.items()):
+        content_lines.append(f"{key}: {value}")
+    
+    if authors or metadata:
+        content_lines.append("")
+    
     # Add extracted text content
     if text_content:
-        content_lines.append("")
         content_lines.append("CONTENT:")
         content_lines.append("-" * 60)
         for text in text_content:
-            if text and text.strip():
-                content_lines.append(text.strip())
-                content_lines.append("")
+            content_lines.append(text)
+            content_lines.append("")
     
-    # If no text was extracted, try to get raw properties for debugging
+    # If no text was extracted, show debug info
     if not text_content and not title_found:
         content_lines.append("")
-        content_lines.append("Note: No direct text content found. Extracting available metadata...")
+        content_lines.append("Note: No text content found. Extracting available properties for debugging...")
         content_lines.append("")
         try:
             properties = one_file.get_properties()
@@ -206,7 +222,7 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
                                 for key in text_keys:
                                     value = val[key]
                                     if value:
-                                        value_str = str(value)[:MAX_PROPERTY_VALUE_LENGTH]  # Limit length
+                                        value_str = str(value)[:MAX_PROPERTY_VALUE_LENGTH]
                                         content_lines.append(f"  {key}: {value_str}")
                                 content_lines.append("")
         except Exception as e:
@@ -233,6 +249,7 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
         content_lines.append(f"Error extracting files: {e}")
     
     return content_lines
+
 
 
 def convert_onenote_directory(
