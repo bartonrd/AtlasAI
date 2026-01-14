@@ -27,3 +27,4 @@ sentence-transformers>=2.3.0
 pypdf>=4.0.0
 docx2txt>=0.8
 pyOneNote>=0.0.2
+reportlab>=4.0.0

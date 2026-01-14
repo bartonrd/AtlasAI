@@ -1,0 +1,224 @@
+"""
+OneNote to PDF converter.
+Converts .one files to PDF format for better text extraction and processing.
+"""
+
+import os
+import shutil
+from typing import List
+from pathlib import Path
+
+
+def convert_onenote_to_pdf(one_file_path: str, output_pdf_path: str) -> bool:
+    """
+    Convert a OneNote file to PDF format.
+    
+    Args:
+        one_file_path: Path to the .one file
+        output_pdf_path: Path where the PDF should be saved
+        
+    Returns:
+        True if conversion was successful, False otherwise
+    """
+    try:
+        # Import dependencies
+        from reportlab.lib.pagesizes import letter
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
+        from reportlab.lib.enums import TA_LEFT
+        from pyOneNote.OneDocument import OneDocment
+        
+        # Parse the OneNote file
+        with open(one_file_path, 'rb') as f:
+            one_file = OneDocment(f)
+        
+        # Extract content
+        content = _extract_content_from_onenote(one_file, one_file_path)
+        
+        # Create PDF
+        doc = SimpleDocTemplate(
+            output_pdf_path,
+            pagesize=letter,
+            rightMargin=0.75*inch,
+            leftMargin=0.75*inch,
+            topMargin=0.75*inch,
+            bottomMargin=0.75*inch,
+        )
+        
+        # Build PDF content
+        styles = getSampleStyleSheet()
+        story = []
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=16,
+            textColor='black',
+            spaceAfter=12,
+        )
+        title = f"OneNote Document: {os.path.basename(one_file_path)}"
+        story.append(Paragraph(title, title_style))
+        story.append(Spacer(1, 0.2*inch))
+        
+        # Content
+        normal_style = ParagraphStyle(
+            'CustomNormal',
+            parent=styles['Normal'],
+            fontSize=10,
+            alignment=TA_LEFT,
+            spaceAfter=6,
+        )
+        
+        for line in content:
+            if line.strip():
+                # Escape special XML characters for ReportLab
+                line = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                story.append(Paragraph(line, normal_style))
+                story.append(Spacer(1, 0.1*inch))
+        
+        # Build PDF
+        doc.build(story)
+        
+        print(f"Successfully converted {os.path.basename(one_file_path)} to PDF")
+        return True
+        
+    except Exception as e:
+        print(f"Error converting {one_file_path} to PDF: {e}")
+        return False
+
+
+def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
+    """
+    Extract text content from a OneNote file.
+    
+    Args:
+        one_file: Parsed OneNote document
+        file_path: Original file path
+        
+    Returns:
+        List of text lines
+    """
+    content_lines = []
+    
+    # Add file info
+    content_lines.append(f"Source: {os.path.basename(file_path)}")
+    content_lines.append("")
+    
+    # Extract properties
+    try:
+        properties = one_file.get_properties()
+        if properties:
+            content_lines.append(f"Document Properties ({len(properties)} items):")
+            content_lines.append("-" * 50)
+            
+            for prop in properties[:50]:  # Limit to first 50 properties
+                if isinstance(prop, dict):
+                    prop_type = prop.get('type', 'Unknown')
+                    identity = prop.get('identity', '')
+                    
+                    content_lines.append(f"Property: {prop_type}")
+                    if identity:
+                        content_lines.append(f"  ID: {identity}")
+                    
+                    # Extract values
+                    val = prop.get('val', {})
+                    if isinstance(val, dict):
+                        for key, value in val.items():
+                            if value and not key.startswith('_'):
+                                # Convert value to string and limit length
+                                value_str = str(value)
+                                if len(value_str) > 200:
+                                    value_str = value_str[:200] + "..."
+                                content_lines.append(f"  {key}: {value_str}")
+                    
+                    content_lines.append("")
+    except Exception as e:
+        content_lines.append(f"Error extracting properties: {e}")
+        content_lines.append("")
+    
+    # Extract embedded files
+    try:
+        files = one_file.get_files()
+        if files:
+            content_lines.append("")
+            content_lines.append(f"Embedded Files ({len(files)} items):")
+            content_lines.append("-" * 50)
+            
+            for file_info in files[:20]:  # Limit to first 20 files
+                if isinstance(file_info, dict):
+                    file_name = file_info.get('file_name', 'Unknown')
+                    file_size = file_info.get('file_size', 'Unknown')
+                    content_lines.append(f"- {file_name} (Size: {file_size})")
+    except Exception as e:
+        content_lines.append(f"Error extracting files: {e}")
+    
+    return content_lines
+
+
+def convert_onenote_directory(
+    source_dir: str,
+    output_dir: str,
+    overwrite: bool = True
+) -> int:
+    """
+    Convert all OneNote files in a directory to PDFs.
+    
+    Args:
+        source_dir: Directory containing .one files
+        output_dir: Directory to save PDF files
+        overwrite: If True, overwrite existing PDFs
+        
+    Returns:
+        Number of files successfully converted
+    """
+    if not os.path.exists(source_dir):
+        print(f"Source directory does not exist: {source_dir}")
+        return 0
+    
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # If overwrite is True, clear the output directory
+    if overwrite and os.path.exists(output_dir):
+        print(f"Clearing output directory: {output_dir}")
+        for item in os.listdir(output_dir):
+            item_path = os.path.join(output_dir, item)
+            try:
+                if os.path.isfile(item_path):
+                    os.unlink(item_path)
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)
+            except Exception as e:
+                print(f"Error removing {item_path}: {e}")
+    
+    # Find all .one files
+    one_files = []
+    try:
+        for filename in os.listdir(source_dir):
+            if filename.lower().endswith('.one'):
+                one_files.append(filename)
+    except Exception as e:
+        print(f"Error listing files in {source_dir}: {e}")
+        return 0
+    
+    if not one_files:
+        print(f"No .one files found in {source_dir}")
+        return 0
+    
+    print(f"Found {len(one_files)} OneNote file(s) to convert")
+    
+    # Convert each file
+    converted_count = 0
+    for filename in one_files:
+        source_path = os.path.join(source_dir, filename)
+        pdf_filename = os.path.splitext(filename)[0] + '.pdf'
+        output_path = os.path.join(output_dir, pdf_filename)
+        
+        print(f"Converting: {filename} -> {pdf_filename}")
+        if convert_onenote_to_pdf(source_path, output_path):
+            converted_count += 1
+    
+    print(f"Successfully converted {converted_count}/{len(one_files)} file(s)")
+    return converted_count

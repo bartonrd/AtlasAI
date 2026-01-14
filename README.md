@@ -33,7 +33,8 @@ The application consists of two main components:
 ## Features
 
 - **Local LLM Processing**: Uses offline Hugging Face models (FLAN-T5) for text generation
-- **RAG System**: Retrieves relevant context from PDF/DOCX/OneNote documents before answering
+- **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
+- **OneNote Conversion**: Automatically converts .one files to PDF on startup for better text extraction
 - **HTTP API**: Clean boundary between C# host and Python runtime
 - **Offline-First**: No required external SaaS dependencies
 - **Interactive Console**: Simple chat interface in the C# application
@@ -278,16 +279,23 @@ Open `http://localhost:8000/docs` in your browser to access the interactive Fast
 
 ## Adding Documents
 
-Place PDF, DOCX, or OneNote (.one) files in the `documents/` folder. The runtime will automatically load them when processing queries.
+Place PDF or DOCX files in the `documents/` folder. The runtime will automatically load them when processing queries.
 
 ### OneNote Document Support
 
-AtlasAI now supports Microsoft OneNote (.one) files. OneNote files from the Model Manager Runbook are automatically loaded from the configured path. To add your own OneNote files:
+AtlasAI automatically converts OneNote (.one) files to PDF format for better text extraction and processing.
 
-1. Place .one files in the `documents/` folder, or
-2. Configure the `ATLASAI_ONENOTE_RUNBOOK_PATH` environment variable to point to a directory containing .one files
+**How it works:**
+- On startup, the application scans the configured OneNote runbook path for .one files
+- All .one files are converted to PDF format and saved in `documents/runbook/` folder
+- The converted PDFs are automatically loaded into the RAG context
+- The runbook folder is cleared and regenerated on each startup to ensure fresh conversions
 
-**Note**: OneNote text extraction is limited to basic content. For best results, consider converting complex OneNote notebooks to PDF or DOCX format.
+**Configuration:**
+- Set `ATLASAI_ONENOTE_RUNBOOK_PATH` environment variable to point to your OneNote files directory
+- Default path: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`
+
+**Note**: The conversion extracts metadata, properties, and embedded file information from OneNote files. While this provides searchable content, it may not preserve the exact visual layout of the original notes.
 
 ## Troubleshooting
 

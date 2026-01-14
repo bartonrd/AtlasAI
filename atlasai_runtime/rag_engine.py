@@ -6,9 +6,11 @@ import os
 import re
 from typing import List, Dict, Any, Optional
 
-# Loaders: PDF + DOCX + OneNote
+# Loaders: PDF + DOCX
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
-from .onenote_loader import OneNoteLoader
+
+# OneNote converter
+from .onenote_converter import convert_onenote_directory
 
 # Splitter (v1 package)
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -69,6 +71,32 @@ class RAGEngine:
         self._embeddings = None
         self._llm = None
         self._qa_chain = None
+        
+        # Convert OneNote files to PDF on initialization
+        self._convert_onenote_runbook()
+    
+    def _convert_onenote_runbook(self):
+        """
+        Convert OneNote files from the runbook path to PDFs.
+        Saves converted PDFs in documents/runbook/ directory.
+        """
+        # Create runbook directory path
+        runbook_output_dir = os.path.join(self.documents_dir, "runbook")
+        
+        print(f"Converting OneNote files from: {self.onenote_runbook_path}")
+        print(f"Output directory: {runbook_output_dir}")
+        
+        # Convert all .one files to PDF
+        converted_count = convert_onenote_directory(
+            source_dir=self.onenote_runbook_path,
+            output_dir=runbook_output_dir,
+            overwrite=True
+        )
+        
+        if converted_count > 0:
+            print(f"Successfully converted {converted_count} OneNote file(s) to PDF")
+        else:
+            print("No OneNote files were converted")
 
     def _load_documents(self, additional_paths: Optional[List[str]] = None) -> List[Any]:
         """
@@ -83,41 +111,23 @@ class RAGEngine:
         docs = []
         missing = []
 
-        # Load default documents from documents directory
+        # Load default documents from documents directory (including subdirectories)
         if os.path.exists(self.documents_dir):
-            for filename in os.listdir(self.documents_dir):
-                filepath = os.path.join(self.documents_dir, filename)
-                if not os.path.isfile(filepath):
-                    continue
-
-                ext = os.path.splitext(filepath)[1].lower()
-                try:
-                    if ext == ".pdf":
-                        docs.extend(PyPDFLoader(filepath).load())
-                    elif ext == ".docx":
-                        docs.extend(Docx2txtLoader(filepath).load())
-                    elif ext == ".one":
-                        docs.extend(OneNoteLoader(filepath).load())
-                except Exception as e:
-                    print(f"Warning: Failed to read {filepath}: {e}")
-
-        # Load OneNote files from runbook path
-        if os.path.exists(self.onenote_runbook_path):
-            try:
-                for filename in os.listdir(self.onenote_runbook_path):
-                    filepath = os.path.join(self.onenote_runbook_path, filename)
-                    if not os.path.isfile(filepath):
-                        continue
-                    
+            # Walk through documents directory and subdirectories
+            for root, dirs, files in os.walk(self.documents_dir):
+                for filename in files:
+                    filepath = os.path.join(root, filename)
                     ext = os.path.splitext(filepath)[1].lower()
-                    if ext == ".one":
-                        try:
-                            docs.extend(OneNoteLoader(filepath).load())
-                            print(f"Loaded OneNote file: {filename}")
-                        except Exception as e:
-                            print(f"Warning: Failed to read OneNote file {filepath}: {e}")
-            except Exception as e:
-                print(f"Warning: Failed to access OneNote runbook path {self.onenote_runbook_path}: {e}")
+                    
+                    try:
+                        if ext == ".pdf":
+                            docs.extend(PyPDFLoader(filepath).load())
+                            print(f"Loaded PDF: {os.path.relpath(filepath, self.documents_dir)}")
+                        elif ext == ".docx":
+                            docs.extend(Docx2txtLoader(filepath).load())
+                            print(f"Loaded DOCX: {os.path.relpath(filepath, self.documents_dir)}")
+                    except Exception as e:
+                        print(f"Warning: Failed to read {filepath}: {e}")
 
         # Load additional documents
         if additional_paths:
@@ -132,8 +142,6 @@ class RAGEngine:
                         docs.extend(PyPDFLoader(path).load())
                     elif ext == ".docx":
                         docs.extend(Docx2txtLoader(path).load())
-                    elif ext == ".one":
-                        docs.extend(OneNoteLoader(path).load())
                 except Exception as e:
                     print(f"Warning: Failed to read {path}: {e}")
 
