@@ -177,6 +177,14 @@ def _process_one_file(
     documents = []
 
     try:
+        # Open the section/notebook first to ensure it's accessible
+        # This is required for the COM API to work with the file
+        try:
+            onenote.OpenHierarchy(str(one_file), "", None, 0)
+        except Exception as e:
+            logger.debug(f"OpenHierarchy note for {one_file.name}: {e}")
+            # Continue anyway - file might already be open
+        
         # Get hierarchy for this notebook/section
         # Use GetHierarchy with scope hsPages to get all pages
         xml_hierarchy = onenote.GetHierarchy(
