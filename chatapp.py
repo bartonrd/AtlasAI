@@ -46,9 +46,10 @@ DOCX_PATHS = [
 EMBEDDING_MODEL = r"C:\models\all-MiniLM-L6-v2"
 LOCAL_TEXT_GEN_MODEL = r"C:\models\flan-t5-base"  # or flan-t5-small for faster CPU runs
 
-TOP_K = 4  # number of chunks retrieved
-CHUNK_SIZE = 800  # reduced from 1000 to fit within model token limits
-CHUNK_OVERLAP = 150
+# Default settings (can be overridden in session state)
+DEFAULT_TOP_K = 4  # number of chunks retrieved
+DEFAULT_CHUNK_SIZE = 800  # reduced from 1000 to fit within model token limits
+DEFAULT_CHUNK_OVERLAP = 150
 
 # Chat configuration
 DEFAULT_CHAT_NAME = "New Chat"
@@ -164,6 +165,16 @@ def initialize_session_state():
     
     if "chat_counter" not in st.session_state:
         st.session_state.chat_counter = 1
+    
+    # Initialize settings
+    if "top_k" not in st.session_state:
+        st.session_state.top_k = DEFAULT_TOP_K
+    
+    if "chunk_size" not in st.session_state:
+        st.session_state.chunk_size = DEFAULT_CHUNK_SIZE
+    
+    if "chunk_overlap" not in st.session_state:
+        st.session_state.chunk_overlap = DEFAULT_CHUNK_OVERLAP
 
 # Initialize session state
 initialize_session_state()
@@ -220,6 +231,42 @@ def rename_chat(chat_id, new_name):
 def get_current_chat():
     """Get the current chat instance"""
     return st.session_state.chats[st.session_state.current_chat_id]
+
+def validate_settings(top_k, chunk_size, chunk_overlap):
+    """
+    Validate chatbot settings and return error messages if any.
+    
+    Args:
+        top_k: Number of chunks to retrieve
+        chunk_size: Size of each text chunk
+        chunk_overlap: Overlap between chunks
+    
+    Returns:
+        List of error messages (empty if all valid)
+    """
+    errors = []
+    
+    # Validate top_k
+    if not isinstance(top_k, int) or top_k < 1:
+        errors.append("Top K must be a positive integer (minimum 1)")
+    elif top_k > 20:
+        errors.append("Top K should not exceed 20 for optimal performance")
+    
+    # Validate chunk_size
+    if not isinstance(chunk_size, int) or chunk_size < 100:
+        errors.append("Chunk Size must be at least 100 characters")
+    elif chunk_size > 2000:
+        errors.append("Chunk Size should not exceed 2000 to fit within model token limits")
+    
+    # Validate chunk_overlap
+    if not isinstance(chunk_overlap, int) or chunk_overlap < 0:
+        errors.append("Chunk Overlap must be a non-negative integer")
+    elif chunk_overlap >= chunk_size:
+        errors.append("Chunk Overlap must be less than Chunk Size")
+    elif chunk_size > 0 and chunk_overlap > chunk_size * 0.5:
+        errors.append("Chunk Overlap should not exceed 50% of Chunk Size for best results")
+    
+    return errors
 
 # ---------------------------
 # Streamlit UI - Sidebar
@@ -294,13 +341,65 @@ with st.sidebar:
     
     with tab2:
         st.subheader("Settings")
-        st.write("Settings configuration coming soon...")
+        st.write("Adjust the chatbot configuration below:")
+        
+        # Top K setting
+        top_k_input = st.number_input(
+            "Top K (number of chunks retrieved)",
+            min_value=1,
+            max_value=20,
+            value=st.session_state.top_k,
+            step=1,
+            help="Number of text chunks to retrieve from documents for each query. Higher values provide more context but may slow down responses."
+        )
+        
+        # Chunk Size setting
+        chunk_size_input = st.number_input(
+            "Chunk Size (characters)",
+            min_value=100,
+            max_value=2000,
+            value=st.session_state.chunk_size,
+            step=50,
+            help="Size of each text chunk in characters. Larger chunks provide more context per chunk but may exceed model token limits."
+        )
+        
+        # Chunk Overlap setting
+        chunk_overlap_input = st.number_input(
+            "Chunk Overlap (characters)",
+            min_value=0,
+            max_value=min(chunk_size_input - 1, 1000),
+            value=min(st.session_state.chunk_overlap, chunk_size_input - 1),
+            step=10,
+            help="Overlap between consecutive chunks in characters. Helps maintain context across chunk boundaries."
+        )
+        
+        # Validate settings
+        validation_errors = validate_settings(top_k_input, chunk_size_input, chunk_overlap_input)
+        
+        # Apply button
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            apply_button = st.button("Apply Settings", use_container_width=True, disabled=len(validation_errors) > 0)
+        
+        if apply_button and len(validation_errors) == 0:
+            st.session_state.top_k = top_k_input
+            st.session_state.chunk_size = chunk_size_input
+            st.session_state.chunk_overlap = chunk_overlap_input
+            st.success("Settings applied successfully!")
+            st.rerun()
+        
+        # Display validation errors at the bottom
+        if validation_errors:
+            st.divider()
+            st.error("**Settings Validation Errors:**")
+            for error in validation_errors:
+                st.error(f"❌ {error}")
         
         st.divider()
-        st.write("**Configuration**")
-        st.text(f"Top K: {TOP_K}")
-        st.text(f"Chunk Size: {CHUNK_SIZE}")
-        st.text(f"Chunk Overlap: {CHUNK_OVERLAP}")
+        st.write("**Current Active Settings:**")
+        st.text(f"Top K: {st.session_state.top_k}")
+        st.text(f"Chunk Size: {st.session_state.chunk_size}")
+        st.text(f"Chunk Overlap: {st.session_state.chunk_overlap}")
     
     with tab3:
         st.subheader("Documents")
@@ -423,8 +522,8 @@ if prompt_text:
         # ---------------------------
         thinking_placeholder.markdown(thinking_message("Processing documents..."), unsafe_allow_html=True)
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=CHUNK_SIZE,
-            chunk_overlap=CHUNK_OVERLAP,
+            chunk_size=st.session_state.chunk_size,
+            chunk_overlap=st.session_state.chunk_overlap,
             add_start_index=True,
         )
         splits = splitter.split_documents(docs)
@@ -448,7 +547,7 @@ if prompt_text:
         except IndexError:
             st.error("Embedding list was empty—ensure files have extractable text.")
             st.stop()
-        retriever = vectorstore.as_retriever(search_kwargs={"k": TOP_K})
+        retriever = vectorstore.as_retriever(search_kwargs={"k": st.session_state.top_k})
 
         # ---------------------------
         # 4) Local Hugging Face pipeline LLM (deterministic for clean bullets)
