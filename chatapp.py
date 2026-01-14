@@ -51,6 +51,7 @@ LOCAL_TEXT_GEN_MODEL = r"C:\models\flan-t5-base"  # or flan-t5-small for faster 
 DEFAULT_TOP_K = 4  # number of chunks retrieved
 DEFAULT_CHUNK_SIZE = 800  # reduced from 1000 to fit within model token limits
 DEFAULT_CHUNK_OVERLAP = 150
+MAX_CHUNK_OVERLAP = 1000  # maximum allowed overlap regardless of chunk size
 
 # Chat configuration
 DEFAULT_CHAT_NAME = "New Chat"
@@ -250,23 +251,23 @@ def validate_settings(top_k, chunk_size, chunk_overlap):
     errors = []
     
     # Validate top_k
-    if not isinstance(top_k, int) or top_k < 1:
+    if top_k < 1:
         errors.append("Top K must be a positive integer (minimum 1)")
     elif top_k > 20:
         errors.append("Top K should not exceed 20 for optimal performance")
     
     # Validate chunk_size
-    if not isinstance(chunk_size, int) or chunk_size < 100:
+    if chunk_size < 100:
         errors.append("Chunk Size must be at least 100 characters")
     elif chunk_size > 2000:
         errors.append("Chunk Size should not exceed 2000 to fit within model token limits")
     
     # Validate chunk_overlap
-    if not isinstance(chunk_overlap, int) or chunk_overlap < 0:
+    if chunk_overlap < 0:
         errors.append("Chunk Overlap must be a non-negative integer")
     elif chunk_overlap >= chunk_size:
         errors.append("Chunk Overlap must be less than Chunk Size")
-    elif chunk_size > 0 and chunk_overlap > chunk_size * 0.5:
+    elif chunk_overlap > chunk_size * 0.5:
         errors.append("Chunk Overlap should not exceed 50% of Chunk Size for best results")
     
     return errors
@@ -367,11 +368,15 @@ with st.sidebar:
         )
         
         # Chunk Overlap setting
+        # Ensure overlap value is clamped to be less than chunk size
+        max_overlap = min(chunk_size_input - 1, MAX_CHUNK_OVERLAP)
+        current_overlap = min(st.session_state.chunk_overlap, max_overlap)
+        
         chunk_overlap_input = st.number_input(
             "Chunk Overlap (characters)",
             min_value=0,
-            max_value=min(chunk_size_input - 1, 1000),
-            value=min(st.session_state.chunk_overlap, chunk_size_input - 1),
+            max_value=max_overlap,
+            value=current_overlap,
             step=10,
             help="Overlap between consecutive chunks in characters. Helps maintain context across chunk boundaries."
         )
@@ -380,9 +385,7 @@ with st.sidebar:
         validation_errors = validate_settings(top_k_input, chunk_size_input, chunk_overlap_input)
         
         # Apply button
-        col1, col2 = st.columns([1, 3])
-        with col1:
-            apply_button = st.button("Apply Settings", use_container_width=True, disabled=len(validation_errors) > 0)
+        apply_button = st.button("Apply Settings", use_container_width=True, disabled=len(validation_errors) > 0)
         
         if apply_button and len(validation_errors) == 0:
             st.session_state.top_k = top_k_input
@@ -394,9 +397,8 @@ with st.sidebar:
         # Display validation errors at the bottom
         if validation_errors:
             st.divider()
-            st.error("**Settings Validation Errors:**")
-            for error in validation_errors:
-                st.error(f"❌ {error}")
+            error_message = "**Settings Validation Errors:**\n\n" + "\n".join([f"❌ {error}" for error in validation_errors])
+            st.error(error_message)
         
         st.divider()
         st.write("**Current Active Settings:**")
