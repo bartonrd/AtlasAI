@@ -39,12 +39,12 @@ class OneNoteLoader:
             raise FileNotFoundError(f"File not found: {self.file_path}")
             
         try:
-            # Import pyOneNote here to avoid import errors if not installed
-            import pyOneNote
+            # Import pyOneNote modules here to avoid import errors if not installed
+            from pyOneNote.OneDocument import OneDocment
             
             # Parse the OneNote file
             with open(self.file_path, 'rb') as f:
-                one_file = pyOneNote.OneNoteFile(f.read())
+                one_file = OneDocment(f)
             
             # Extract text content
             text_content = self._extract_text(one_file)
@@ -86,48 +86,49 @@ class OneNoteLoader:
         Extract text content from a OneNote file.
         
         Args:
-            one_file: Parsed OneNote file object
+            one_file: Parsed OneNote file object (OneDocument instance)
             
         Returns:
             Extracted text content
         """
         text_parts = []
         
-        # Try to get the file GUID if available
+        # Try to get file metadata and properties
         try:
-            if hasattr(one_file, 'guid'):
-                text_parts.append(f"OneNote File ID: {one_file.guid}")
-        except:
-            pass
+            # Get properties from the OneNote file
+            properties = one_file.get_properties()
+            if properties:
+                text_parts.append(f"OneNote document with {len(properties)} properties")
+                
+                # Extract text from properties
+                for prop in properties:
+                    if isinstance(prop, dict):
+                        # Look for text-related properties
+                        prop_type = prop.get('type', '')
+                        if prop_type and 'jcid' in prop_type.lower():
+                            text_parts.append(f"- {prop_type}")
+                        
+                        # Try to extract meaningful text values
+                        val = prop.get('val', {})
+                        if isinstance(val, dict):
+                            # Look for text content in common keys
+                            for key in ['TextContent', 'Title', 'Name', 'Author', 'Subject']:
+                                if key in val and val[key]:
+                                    text_parts.append(f"{key}: {val[key]}")
+        except Exception as e:
+            print(f"Debug: Error extracting properties: {e}")
         
-        # Try to extract embedded files and their names (which might contain useful info)
+        # Try to get embedded files information
         try:
-            if hasattr(one_file, 'get_files'):
-                files = one_file.get_files()
-                if files:
-                    text_parts.append("Embedded files:")
-                    for file_info in files:
-                        if hasattr(file_info, 'file_name'):
-                            text_parts.append(f"- {file_info.file_name}")
-        except:
-            pass
-        
-        # Try to get any text data that might be available
-        # Note: pyOneNote is primarily for embedded file extraction,
-        # so text extraction is very limited
-        try:
-            if hasattr(one_file, 'data'):
-                # Try to find readable text in the data
-                # This is a best-effort approach
-                data_str = str(one_file.data)
-                # Look for readable ASCII text chunks (very basic heuristic)
-                import re
-                # Find sequences of printable characters
-                text_chunks = re.findall(r'[a-zA-Z0-9\s\.,;:!?()-]{20,}', data_str)
-                if text_chunks:
-                    text_parts.extend(text_chunks[:10])  # Limit to first 10 chunks
-        except:
-            pass
+            files = one_file.get_files()
+            if files:
+                text_parts.append(f"\nEmbedded files ({len(files)}):")
+                for file_info in files[:10]:  # Limit to first 10
+                    if isinstance(file_info, dict):
+                        file_name = file_info.get('file_name', 'Unknown')
+                        text_parts.append(f"- {file_name}")
+        except Exception as e:
+            print(f"Debug: Error extracting files: {e}")
         
         if text_parts:
             return "\n".join(text_parts)
