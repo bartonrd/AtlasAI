@@ -2,6 +2,8 @@
 import os
 import re
 import streamlit as st
+from datetime import datetime
+import uuid
 
 # Loaders: PDF + DOCX
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
@@ -124,35 +126,173 @@ def to_bullets(text: str, min_items: int = 3, max_items: int = 10) -> str:
     return "\n".join(bullets)
 
 # ---------------------------
-# Streamlit UI
+# Session State Initialization
 # ---------------------------
-st.title("Ask a question")
+if "chats" not in st.session_state:
+    # Dictionary to store all chat instances
+    st.session_state.chats = {}
 
-# Drag-drop upload for PDF/DOCX
-uploaded_files = st.file_uploader(
-    "Upload PDF or DOCX files (optional)",
-    type=["pdf", "docx"],
-    accept_multiple_files=True,
-)
+if "current_chat_id" not in st.session_state:
+    # Create initial chat
+    initial_id = str(uuid.uuid4())
+    st.session_state.chats[initial_id] = {
+        "name": "Chat 1",
+        "created_at": datetime.now(),
+        "messages": []
+    }
+    st.session_state.current_chat_id = initial_id
 
-temp_dir = os.path.join(os.getcwd(), "tmp_docs")
-os.makedirs(temp_dir, exist_ok=True)
+if "uploaded_documents" not in st.session_state:
+    st.session_state.uploaded_documents = []
 
-if uploaded_files:
-    for uf in uploaded_files:
-        save_path = os.path.join(temp_dir, uf.name)
-        with open(save_path, "wb") as f:
-            f.write(uf.read())
-        ext = os.path.splitext(save_path)[1].lower()
-        if ext == ".pdf":
-            PDF_PATHS.append(save_path)
-        elif ext == ".docx":
-            DOCX_PATHS.append(save_path)
+if "chat_counter" not in st.session_state:
+    st.session_state.chat_counter = 1
 
-prompt_text = st.chat_input("Pass Your Prompt here")
+# ---------------------------
+# Helper Functions for Chat Management
+# ---------------------------
+def create_new_chat():
+    """Create a new chat instance"""
+    st.session_state.chat_counter += 1
+    new_id = str(uuid.uuid4())
+    st.session_state.chats[new_id] = {
+        "name": f"Chat {st.session_state.chat_counter}",
+        "created_at": datetime.now(),
+        "messages": []
+    }
+    st.session_state.current_chat_id = new_id
+
+def delete_chat(chat_id):
+    """Delete a chat instance"""
+    if len(st.session_state.chats) > 1:
+        del st.session_state.chats[chat_id]
+        if st.session_state.current_chat_id == chat_id:
+            st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
+
+def get_current_chat():
+    """Get the current chat instance"""
+    return st.session_state.chats[st.session_state.current_chat_id]
+
+# ---------------------------
+# Streamlit UI - Sidebar
+# ---------------------------
+st.set_page_config(page_title="AtlasAI Chat", layout="wide")
+
+with st.sidebar:
+    st.title("AtlasAI")
+    
+    # Tab navigation
+    tab1, tab2, tab3 = st.tabs(["💬 Chats", "⚙️ Settings", "📄 Documents"])
+    
+    with tab1:
+        st.subheader("Chat Sessions")
+        
+        # New Chat button
+        if st.button("➕ New Chat", use_container_width=True):
+            create_new_chat()
+            st.rerun()
+        
+        st.divider()
+        
+        # List all chats
+        for chat_id, chat_data in st.session_state.chats.items():
+            col1, col2 = st.columns([4, 1])
+            with col1:
+                if st.button(
+                    chat_data["name"],
+                    key=f"chat_{chat_id}",
+                    use_container_width=True,
+                    type="primary" if chat_id == st.session_state.current_chat_id else "secondary"
+                ):
+                    st.session_state.current_chat_id = chat_id
+                    st.rerun()
+            with col2:
+                if len(st.session_state.chats) > 1:
+                    if st.button("🗑️", key=f"del_{chat_id}"):
+                        delete_chat(chat_id)
+                        st.rerun()
+    
+    with tab2:
+        st.subheader("Settings")
+        st.write("Settings configuration coming soon...")
+        
+        st.divider()
+        st.write("**Configuration**")
+        st.text(f"Top K: {TOP_K}")
+        st.text(f"Chunk Size: {CHUNK_SIZE}")
+        st.text(f"Chunk Overlap: {CHUNK_OVERLAP}")
+    
+    with tab3:
+        st.subheader("Documents")
+        
+        # File uploader in Documents tab
+        uploaded_files = st.file_uploader(
+            "Upload PDF or DOCX files",
+            type=["pdf", "docx"],
+            accept_multiple_files=True,
+            key="doc_uploader"
+        )
+        
+        temp_dir = os.path.join(os.getcwd(), "tmp_docs")
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        if uploaded_files:
+            for uf in uploaded_files:
+                save_path = os.path.join(temp_dir, uf.name)
+                # Check if already processed
+                if save_path not in st.session_state.uploaded_documents:
+                    with open(save_path, "wb") as f:
+                        f.write(uf.read())
+                    ext = os.path.splitext(save_path)[1].lower()
+                    if ext == ".pdf":
+                        PDF_PATHS.append(save_path)
+                    elif ext == ".docx":
+                        DOCX_PATHS.append(save_path)
+                    st.session_state.uploaded_documents.append(save_path)
+        
+        st.divider()
+        st.write("**Loaded Documents:**")
+        
+        # Show default documents
+        st.write("*Default documents:*")
+        for doc_path in PDF_PATHS + DOCX_PATHS:
+            if doc_path not in st.session_state.uploaded_documents:
+                st.text(f"📄 {os.path.basename(doc_path)}")
+        
+        # Show uploaded documents
+        if st.session_state.uploaded_documents:
+            st.write("*Uploaded documents:*")
+            for doc_path in st.session_state.uploaded_documents:
+                st.text(f"📎 {os.path.basename(doc_path)}")
+
+# ---------------------------
+# Main Chat UI
+# ---------------------------
+current_chat = get_current_chat()
+st.title(f"💬 {current_chat['name']}")
+
+# Display chat history
+for message in current_chat["messages"]:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+        if "sources" in message and message["sources"]:
+            with st.expander("Sources"):
+                for i, source_info in enumerate(message["sources"], start=1):
+                    st.write(source_info)
+
+# Chat input
+prompt_text = st.chat_input("Ask a question about your documents...")
 
 if prompt_text:
-    st.chat_message("user").markdown(prompt_text)
+    # Add user message to chat history
+    current_chat["messages"].append({
+        "role": "user",
+        "content": prompt_text
+    })
+    
+    # Display user message
+    with st.chat_message("user"):
+        st.markdown(prompt_text)
 
     # ---------------------------
     # 1) Load documents (PDF + DOCX)
@@ -282,12 +422,32 @@ Answer (markdown bullets only):
     # ---------------------------
     # 8) Display (enforce bullets)
     # ---------------------------
-    st.chat_message("assistant").markdown(to_bullets(answer))
-
-    if sources:
-        with st.expander("Sources"):
-            for i, doc in enumerate(sources, start=1):
-                meta = doc.metadata or {}
-                page = meta.get("page", "unknown")
-                source = meta.get("source", "unknown")
-                st.write(f"{i}. {source} (page {page})")
+    formatted_answer = to_bullets(answer)
+    
+    # Display assistant message
+    with st.chat_message("assistant"):
+        st.markdown(formatted_answer)
+        
+        if sources:
+            with st.expander("Sources"):
+                source_list = []
+                for i, doc in enumerate(sources, start=1):
+                    meta = doc.metadata or {}
+                    page = meta.get("page", "unknown")
+                    source = meta.get("source", "unknown")
+                    source_info = f"{i}. {source} (page {page})"
+                    st.write(source_info)
+                    source_list.append(source_info)
+                
+                # Add assistant message with sources to chat history
+                current_chat["messages"].append({
+                    "role": "assistant",
+                    "content": formatted_answer,
+                    "sources": source_list
+                })
+        else:
+            # Add assistant message without sources to chat history
+            current_chat["messages"].append({
+                "role": "assistant",
+                "content": formatted_answer
+            })
