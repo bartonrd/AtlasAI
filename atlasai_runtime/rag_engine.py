@@ -32,6 +32,10 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 from langchain_huggingface import HuggingFacePipeline
 
 
+# Configuration constants
+MAX_FILES_TO_DISPLAY = 5  # Maximum number of files to show in logging output
+
+
 class RAGEngine:
     """
     Retrieval-Augmented Generation engine for document-based question answering.
@@ -103,12 +107,15 @@ class RAGEngine:
             if os.path.exists(runbook_output_dir):
                 pdf_files = [f for f in os.listdir(runbook_output_dir) if f.lower().endswith('.pdf')]
                 print(f"✓ PDF files in runbook directory: {len(pdf_files)}")
-                for pdf_file in pdf_files[:5]:  # Show first 5
+                for pdf_file in pdf_files[:MAX_FILES_TO_DISPLAY]:
                     pdf_path = os.path.join(runbook_output_dir, pdf_file)
-                    size = os.path.getsize(pdf_path)
-                    print(f"  - {pdf_file} ({size:,} bytes)")
-                if len(pdf_files) > 5:
-                    print(f"  ... and {len(pdf_files) - 5} more")
+                    try:
+                        size = os.path.getsize(pdf_path)
+                        print(f"  - {pdf_file} ({size:,} bytes)")
+                    except OSError as e:
+                        print(f"  - {pdf_file} (error reading size: {e})")
+                if len(pdf_files) > MAX_FILES_TO_DISPLAY:
+                    print(f"  ... and {len(pdf_files) - MAX_FILES_TO_DISPLAY} more")
         else:
             print("⚠ No OneNote files were converted")
             if not os.path.exists(self.onenote_runbook_path):
