@@ -1,8 +1,9 @@
 # Python dependencies for AtlasAI Chatbot
 # Install with: pip install -r requirements.txt
 
-# Streamlit UI (optional - for legacy UI)
+# Streamlit UI (optional - for UI mode)
 streamlit>=1.31.0
+requests>=2.31.0
 
 # FastAPI runtime
 fastapi>=0.104.0

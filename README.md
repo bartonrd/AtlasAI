@@ -138,7 +138,17 @@ The C# application will:
 - Start the Python runtime service on localhost:8000
 - Wait for the runtime to be healthy
 - Provide an interactive chat interface in the console
+- **Press 'S' to launch the Streamlit UI** for a graphical web interface
 - Automatically shut down the runtime when you exit
+
+#### Using the Streamlit UI
+
+While the console is running, press 'S' to launch the Streamlit web UI. The UI provides:
+- Multiple chat sessions with history
+- Graphical interface with source citations
+- Document-based Q&A in a user-friendly format
+
+The Streamlit UI will open in your default web browser at `http://localhost:8501`
 
 ### Option 2: Run Python Runtime Standalone
 
@@ -168,9 +178,19 @@ Once running, you can:
 - View API docs: Open `http://localhost:8000/docs` in a browser
 - Send chat requests via HTTP POST to `/chat`
 
-### Option 3: Run Legacy Streamlit UI
+### Option 3: Run Streamlit UI Standalone
 
-The original Streamlit UI is still available:
+You can run the Streamlit UI independently if the Python runtime is already running:
+
+```bash
+streamlit run streamlit_ui.py
+```
+
+The UI will connect to the Python runtime at `localhost:8000` (configurable via `ATLASAI_RUNTIME_HOST` and `ATLASAI_RUNTIME_PORT` environment variables).
+
+### Option 4: Run Legacy Streamlit UI (Deprecated)
+
+The original Streamlit UI with embedded RAG logic is still available but deprecated:
 
 ```bash
 streamlit run chatapp.py

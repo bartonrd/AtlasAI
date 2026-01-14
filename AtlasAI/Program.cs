@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -49,9 +50,13 @@ namespace AtlasAI
                 Console.WriteLine();
                 Console.WriteLine("===========================================");
                 Console.WriteLine("AtlasAI is ready! You can now ask questions.");
+                Console.WriteLine("Press 'S' to launch Streamlit UI");
                 Console.WriteLine("Press Ctrl+C to exit.");
                 Console.WriteLine("===========================================");
                 Console.WriteLine();
+
+                // Check for Streamlit launch hotkey in background
+                Task.Run(() => CheckForStreamlitHotkey(config, cts.Token));
 
                 // Interactive chat loop
                 while (!cts.Token.IsCancellationRequested)
@@ -125,6 +130,61 @@ namespace AtlasAI
                 Console.WriteLine("3. ML models downloaded to the configured paths");
                 Console.WriteLine();
                 return 1;
+            }
+        }
+
+        private static void CheckForStreamlitHotkey(AppConfiguration config, CancellationToken cancellationToken)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (Console.KeyAvailable)
+                {
+                    var key = Console.ReadKey(intercept: true);
+                    if (key.Key == ConsoleKey.S)
+                    {
+                        LaunchStreamlitUI(config);
+                    }
+                }
+                Thread.Sleep(100);
+            }
+        }
+
+        private static void LaunchStreamlitUI(AppConfiguration config)
+        {
+            Console.WriteLine();
+            Console.WriteLine("Launching Streamlit UI...");
+            Console.WriteLine("The UI will open in your default web browser.");
+            Console.WriteLine();
+
+            try
+            {
+                string solutionRoot = config.SolutionRoot;
+                string streamlitScript = System.IO.Path.Combine(solutionRoot, "streamlit_ui.py");
+
+                if (!System.IO.File.Exists(streamlitScript))
+                {
+                    Console.WriteLine($"ERROR: Streamlit UI script not found at: {streamlitScript}");
+                    return;
+                }
+
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = config.PythonExecutable,
+                    Arguments = $"-m streamlit run \"{streamlitScript}\"",
+                    WorkingDirectory = solutionRoot,
+                    UseShellExecute = false,
+                    CreateNoWindow = false
+                };
+
+                Process.Start(startInfo);
+                Console.WriteLine("Streamlit UI launched successfully!");
+                Console.WriteLine($"If it doesn't open automatically, navigate to: http://localhost:8501");
+                Console.WriteLine();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"ERROR: Failed to launch Streamlit UI: {ex.Message}");
+                Console.WriteLine();
             }
         }
     }
