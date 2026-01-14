@@ -171,14 +171,16 @@ def generate_chat_name(message: str, max_length: int = 30) -> str:
     if len(clean_msg) <= max_length:
         return clean_msg
     
-    # Truncate and add ellipsis
-    truncated = clean_msg[:max_length]
+    # Truncate and add ellipsis (account for ellipsis length)
+    ellipsis = "..."
+    max_text_length = max_length - len(ellipsis)
+    truncated = clean_msg[:max_text_length]
     # Try to break at word boundary, but fallback to character truncation if no spaces
     space_pos = truncated.rfind(' ')
     if space_pos > 0:
-        return truncated[:space_pos] + "..."
+        return truncated[:space_pos] + ellipsis
     else:
-        return truncated + "..."
+        return truncated + ellipsis
 
 def create_new_chat():
     """Create a new chat instance"""
