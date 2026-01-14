@@ -1,0 +1,15 @@
+# Python dependencies for AtlasAI Chatbot
+# Install with: pip install -r requirements.txt
+
+streamlit>=1.31.0
+langchain-community>=0.0.20
+langchain-classic>=0.2.0
+langchain-core>=0.1.23
+langchain-text-splitters>=0.0.1
+langchain-huggingface>=0.0.1
+transformers>=4.37.0
+torch>=2.1.0
+faiss-cpu>=1.7.4
+pypdf>=4.0.0
+docx2txt>=0.8
+sentence-transformers>=2.3.0
