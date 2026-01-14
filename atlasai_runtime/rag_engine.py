@@ -102,11 +102,11 @@ class RAGEngine:
         )
         
         if converted_count > 0:
-            print(f"✓ Successfully converted {converted_count} OneNote file(s) to PDF")
+            print(f"[SUCCESS] Successfully converted {converted_count} OneNote file(s) to PDF")
             # List the converted files
             if os.path.exists(runbook_output_dir):
                 pdf_files = [f for f in os.listdir(runbook_output_dir) if f.lower().endswith('.pdf')]
-                print(f"✓ PDF files in runbook directory: {len(pdf_files)}")
+                print(f"[INFO] PDF files in runbook directory: {len(pdf_files)}")
                 for pdf_file in pdf_files[:MAX_FILES_TO_DISPLAY]:
                     pdf_path = os.path.join(runbook_output_dir, pdf_file)
                     try:
@@ -117,7 +117,7 @@ class RAGEngine:
                 if len(pdf_files) > MAX_FILES_TO_DISPLAY:
                     print(f"  ... and {len(pdf_files) - MAX_FILES_TO_DISPLAY} more")
         else:
-            print("⚠ No OneNote files were converted")
+            print("[WARNING] No OneNote files were converted")
             if not os.path.exists(self.onenote_runbook_path):
                 print(f"  Reason: Source directory does not exist")
                 print(f"  Tip: Set ATLASAI_ONENOTE_RUNBOOK_PATH environment variable to your OneNote files location")
