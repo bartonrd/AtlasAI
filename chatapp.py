@@ -128,25 +128,30 @@ def to_bullets(text: str, min_items: int = 3, max_items: int = 10) -> str:
 # ---------------------------
 # Session State Initialization
 # ---------------------------
-if "chats" not in st.session_state:
-    # Dictionary to store all chat instances
-    st.session_state.chats = {}
+def initialize_session_state():
+    """Initialize all session state variables"""
+    if "chats" not in st.session_state:
+        # Dictionary to store all chat instances
+        st.session_state.chats = {}
+    
+    if "current_chat_id" not in st.session_state:
+        # Create initial chat
+        initial_id = str(uuid.uuid4())
+        st.session_state.chats[initial_id] = {
+            "name": "Chat 1",
+            "created_at": datetime.now(),
+            "messages": []
+        }
+        st.session_state.current_chat_id = initial_id
+    
+    if "uploaded_documents" not in st.session_state:
+        st.session_state.uploaded_documents = []
+    
+    if "chat_counter" not in st.session_state:
+        st.session_state.chat_counter = 1
 
-if "current_chat_id" not in st.session_state:
-    # Create initial chat
-    initial_id = str(uuid.uuid4())
-    st.session_state.chats[initial_id] = {
-        "name": "Chat 1",
-        "created_at": datetime.now(),
-        "messages": []
-    }
-    st.session_state.current_chat_id = initial_id
-
-if "uploaded_documents" not in st.session_state:
-    st.session_state.uploaded_documents = []
-
-if "chat_counter" not in st.session_state:
-    st.session_state.chat_counter = 1
+# Initialize session state
+initialize_session_state()
 
 # ---------------------------
 # Helper Functions for Chat Management
@@ -238,9 +243,9 @@ with st.sidebar:
         
         if uploaded_files:
             for uf in uploaded_files:
-                save_path = os.path.join(temp_dir, uf.name)
-                # Check if already processed
-                if save_path not in st.session_state.uploaded_documents:
+                # Use just filename for tracking to avoid path issues
+                if uf.name not in st.session_state.uploaded_documents:
+                    save_path = os.path.join(temp_dir, uf.name)
                     with open(save_path, "wb") as f:
                         f.write(uf.read())
                     ext = os.path.splitext(save_path)[1].lower()
@@ -248,22 +253,25 @@ with st.sidebar:
                         PDF_PATHS.append(save_path)
                     elif ext == ".docx":
                         DOCX_PATHS.append(save_path)
-                    st.session_state.uploaded_documents.append(save_path)
+                    st.session_state.uploaded_documents.append(uf.name)
         
         st.divider()
         st.write("**Loaded Documents:**")
         
         # Show default documents
         st.write("*Default documents:*")
-        for doc_path in PDF_PATHS + DOCX_PATHS:
-            if doc_path not in st.session_state.uploaded_documents:
-                st.text(f"📄 {os.path.basename(doc_path)}")
+        default_docs = [
+            "distribution_model_manager_user_guide.pdf",
+            "adms-16-20-0-modeling-overview-and-converter-user-guide.pdf"
+        ]
+        for doc_name in default_docs:
+            st.text(f"📄 {doc_name}")
         
         # Show uploaded documents
         if st.session_state.uploaded_documents:
             st.write("*Uploaded documents:*")
-            for doc_path in st.session_state.uploaded_documents:
-                st.text(f"📎 {os.path.basename(doc_path)}")
+            for doc_name in st.session_state.uploaded_documents:
+                st.text(f"📎 {doc_name}")
 
 # ---------------------------
 # Main Chat UI
@@ -424,30 +432,27 @@ Answer (markdown bullets only):
     # ---------------------------
     formatted_answer = to_bullets(answer)
     
+    # Prepare source list
+    source_list = []
+    if sources:
+        for i, doc in enumerate(sources, start=1):
+            meta = doc.metadata or {}
+            page = meta.get("page", "unknown")
+            source = meta.get("source", "unknown")
+            source_list.append(f"{i}. {source} (page {page})")
+    
     # Display assistant message
     with st.chat_message("assistant"):
         st.markdown(formatted_answer)
         
-        if sources:
+        if source_list:
             with st.expander("Sources"):
-                source_list = []
-                for i, doc in enumerate(sources, start=1):
-                    meta = doc.metadata or {}
-                    page = meta.get("page", "unknown")
-                    source = meta.get("source", "unknown")
-                    source_info = f"{i}. {source} (page {page})"
+                for source_info in source_list:
                     st.write(source_info)
-                    source_list.append(source_info)
-                
-                # Add assistant message with sources to chat history
-                current_chat["messages"].append({
-                    "role": "assistant",
-                    "content": formatted_answer,
-                    "sources": source_list
-                })
-        else:
-            # Add assistant message without sources to chat history
-            current_chat["messages"].append({
-                "role": "assistant",
-                "content": formatted_answer
-            })
+    
+    # Add assistant message to chat history
+    current_chat["messages"].append({
+        "role": "assistant",
+        "content": formatted_answer,
+        "sources": source_list if source_list else []
+    })
