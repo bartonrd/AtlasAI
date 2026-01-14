@@ -195,10 +195,14 @@ def _process_one_file(
             # Continue anyway - file might already be open
         
         # Get hierarchy for this notebook/section
-        # Use GetHierarchy with scope hsPages to get all pages
-        xml_hierarchy = onenote.GetHierarchy(
-            str(one_file), HS_PAGES
-        )
+        # GetHierarchy signature: GetHierarchy(nodeID, scope, *pbstrHierarchyXmlOut, xsSchema)
+        # With pywin32 late binding, output parameters are returned directly
+        # We need to pass all 3 parameters: nodeID, scope, and schema (xs2013=3)
+        try:
+            xml_hierarchy = onenote.GetHierarchy(str(one_file), HS_PAGES, "")
+        except:
+            # Try with schema parameter
+            xml_hierarchy = onenote.GetHierarchy(str(one_file), HS_PAGES, "", 3)
 
         # Parse the XML hierarchy
         root = ET.fromstring(xml_hierarchy)
