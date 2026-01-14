@@ -134,7 +134,6 @@ class RAGEngine:
                         docs.extend(Docx2txtLoader(path).load())
                 except Exception as e:
                     print(f"Warning: Failed to read {path}: {e}")
-                    print(f"Warning: Failed to read {path}: {e}")
 
         if missing:
             raise FileNotFoundError(f"Missing files: {', '.join(missing)}")
