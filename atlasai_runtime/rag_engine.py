@@ -4,6 +4,7 @@ RAG Engine - Core logic for document retrieval and question answering.
 
 import os
 import re
+from pathlib import Path
 from typing import List, Dict, Any, Optional
 
 # Loaders: PDF + DOCX
@@ -28,6 +29,9 @@ from langchain_core.prompts import PromptTemplate
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 from langchain_huggingface import HuggingFacePipeline
 
+# OneNote loader
+from .onenote_loader import ingest_onenote
+
 
 class RAGEngine:
     """
@@ -42,6 +46,8 @@ class RAGEngine:
         top_k: int = 4,
         chunk_size: int = 800,
         chunk_overlap: int = 150,
+        enable_onenote: bool = False,
+        onenote_runbook_path: Optional[str] = None,
     ):
         """
         Initialize the RAG engine.
@@ -53,6 +59,8 @@ class RAGEngine:
             top_k: Number of chunks to retrieve
             chunk_size: Size of text chunks
             chunk_overlap: Overlap between chunks
+            enable_onenote: Enable OneNote document ingestion
+            onenote_runbook_path: UNC path to OneNote runbook directory
         """
         self.documents_dir = documents_dir
         self.embedding_model_path = embedding_model
@@ -60,6 +68,8 @@ class RAGEngine:
         self.top_k = top_k
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        self.enable_onenote = enable_onenote
+        self.onenote_runbook_path = onenote_runbook_path
 
         # Lazy initialization
         self._embeddings = None
@@ -95,6 +105,20 @@ class RAGEngine:
                 except Exception as e:
                     print(f"Warning: Failed to read {filepath}: {e}")
 
+        # Load OneNote documents if enabled
+        if self.enable_onenote and self.onenote_runbook_path:
+            try:
+                onenote_path = Path(self.onenote_runbook_path)
+                onenote_docs = ingest_onenote(
+                    onenote_path,
+                    enable_onenote=self.enable_onenote
+                )
+                if onenote_docs:
+                    docs.extend(onenote_docs)
+                    print(f"Loaded {len(onenote_docs)} OneNote pages from {onenote_path}")
+            except Exception as e:
+                print(f"Warning: Failed to load OneNote documents: {e}")
+
         # Load additional documents
         if additional_paths:
             for path in additional_paths:
@@ -109,6 +133,7 @@ class RAGEngine:
                     elif ext == ".docx":
                         docs.extend(Docx2txtLoader(path).load())
                 except Exception as e:
+                    print(f"Warning: Failed to read {path}: {e}")
                     print(f"Warning: Failed to read {path}: {e}")
 
         if missing:

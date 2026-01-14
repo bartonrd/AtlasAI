@@ -27,6 +27,13 @@ TOP_K = int(os.getenv("ATLASAI_TOP_K", "4"))
 CHUNK_SIZE = int(os.getenv("ATLASAI_CHUNK_SIZE", "800"))
 CHUNK_OVERLAP = int(os.getenv("ATLASAI_CHUNK_OVERLAP", "150"))
 
+# OneNote configuration
+ENABLE_ONENOTE = os.getenv("ENABLE_ONENOTE", "false").lower() in ("true", "1", "yes")
+ONENOTE_RUNBOOK_PATH = os.getenv(
+    "ONENOTE_RUNBOOK_PATH",
+    r"\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook"
+)
+
 # Global RAG engine instance
 rag_engine: Optional[RAGEngine] = None
 
@@ -42,6 +49,9 @@ async def lifespan(app: FastAPI):
     logger.info(f"Embedding model: {EMBEDDING_MODEL}")
     logger.info(f"Text generation model: {TEXT_GEN_MODEL}")
     logger.info(f"Settings - TOP_K: {TOP_K}, CHUNK_SIZE: {CHUNK_SIZE}, CHUNK_OVERLAP: {CHUNK_OVERLAP}")
+    logger.info(f"OneNote ingestion: {'enabled' if ENABLE_ONENOTE else 'disabled'}")
+    if ENABLE_ONENOTE:
+        logger.info(f"OneNote runbook path: {ONENOTE_RUNBOOK_PATH}")
     
     try:
         rag_engine = RAGEngine(
@@ -51,6 +61,8 @@ async def lifespan(app: FastAPI):
             top_k=TOP_K,
             chunk_size=CHUNK_SIZE,
             chunk_overlap=CHUNK_OVERLAP,
+            enable_onenote=ENABLE_ONENOTE,
+            onenote_runbook_path=ONENOTE_RUNBOOK_PATH if ENABLE_ONENOTE else None,
         )
         logger.info("RAG engine initialized successfully")
     except Exception as e:
@@ -118,6 +130,8 @@ async def health_check():
                 "top_k": TOP_K,
                 "chunk_size": CHUNK_SIZE,
                 "chunk_overlap": CHUNK_OVERLAP,
+                "enable_onenote": ENABLE_ONENOTE,
+                "onenote_runbook_path": ONENOTE_RUNBOOK_PATH if ENABLE_ONENOTE else None,
             }
         )
     
@@ -131,6 +145,8 @@ async def health_check():
             "top_k": TOP_K,
             "chunk_size": CHUNK_SIZE,
             "chunk_overlap": CHUNK_OVERLAP,
+            "enable_onenote": ENABLE_ONENOTE,
+            "onenote_runbook_path": ONENOTE_RUNBOOK_PATH if ENABLE_ONENOTE else None,
         }
     )
 

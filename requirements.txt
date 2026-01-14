@@ -26,3 +26,6 @@ sentence-transformers>=2.3.0
 # Document loaders
 pypdf>=4.0.0
 docx2txt>=0.8
+pywin32>=306  # For OneNote COM API (Windows only)
+beautifulsoup4>=4.12.0  # For HTML parsing
+lxml>=4.9.0  # For XML parsing
