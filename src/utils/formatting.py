@@ -6,13 +6,12 @@ import html
 import re
 
 
-def format_answer_as_bullets(text: str, min_items: int = 3, max_items: int = 10) -> str:
+def format_answer_as_bullets(text: str, max_items: int = 10) -> str:
     """
     Convert a free-form LLM answer into Markdown bullets
     
     Args:
         text: Raw text from LLM
-        min_items: Minimum number of bullet points
         max_items: Maximum number of bullet points
         
     Returns:
@@ -47,7 +46,7 @@ def format_answer_as_bullets(text: str, min_items: int = 3, max_items: int = 10)
             cleaned.append(p)
     
     # If still too few, try splitting by '•' or semicolons
-    if len(cleaned) < min_items:
+    if len(cleaned) < 3:
         if "•" in text:
             cleaned = [re.sub(r"^[•\-\*\s]+", "", p).strip() for p in text.split("•") if p.strip()]
         elif ";" in text:

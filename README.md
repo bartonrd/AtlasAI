@@ -26,7 +26,7 @@ AtlasAI is a C# application that integrates a Python-based LLM chatbot with a St
 - Download from: https://dotnet.microsoft.com/download
 
 ### 2. Python
-- Python 3.9 or later
+- **Python 3.9 or later** (required for type annotations)
 - Ensure Python is in your system PATH
 
 ### 3. Python Dependencies

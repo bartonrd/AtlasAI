@@ -3,6 +3,7 @@ Embedding service - handles document embeddings with caching
 """
 
 import pickle
+import hashlib
 from pathlib import Path
 from typing import List, Optional
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -109,7 +110,7 @@ class EmbeddingService:
     
     def _generate_cache_key(self, documents: List[Document]) -> str:
         """
-        Generate a cache key based on document content
+        Generate a deterministic cache key based on document content
         
         Args:
             documents: List of documents
@@ -117,13 +118,16 @@ class EmbeddingService:
         Returns:
             Cache key string
         """
-        # Create hash from first few documents' content
-        # This is a simple approach; for production, consider using content hashing
+        # Create deterministic hash from first few documents' content
         sample_size = min(5, len(documents))
         sample_content = "".join([doc.page_content[:100] for doc in documents[:sample_size]])
-        # Simple hash - in production, use hashlib
-        hash_val = hash(sample_content + str(len(documents)))
-        return f"vectorstore_{abs(hash_val)}.pkl"
+        
+        # Use hashlib for deterministic hashing across sessions
+        content_hash = hashlib.md5(
+            (sample_content + str(len(documents))).encode('utf-8')
+        ).hexdigest()
+        
+        return f"vectorstore_{content_hash}.pkl"
     
     def _load_cached_vectorstore(self, cache_key: str) -> Optional[FAISS]:
         """
