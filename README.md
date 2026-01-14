@@ -34,10 +34,12 @@ The application consists of two main components:
 
 - **Local LLM Processing**: Uses offline Hugging Face models (FLAN-T5) for text generation
 - **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
+- **OneNote Integration**: Ingest Microsoft OneNote documents (Windows only) using COM API
 - **HTTP API**: Clean boundary between C# host and Python runtime
 - **Offline-First**: No required external SaaS dependencies
 - **Interactive Console**: Simple chat interface in the C# application
 - **Process Management**: C# host automatically starts/stops the Python runtime
+- **Graceful Degradation**: Continues operating if optional features (like OneNote) are unavailable
 
 ## Prerequisites
 
@@ -55,6 +57,8 @@ Install the required Python packages:
 ```bash
 pip install -r requirements.txt
 ```
+
+**Note for Windows users:** The `requirements.txt` includes `pywin32` which is needed for OneNote COM API integration. On non-Windows platforms, this package will be installed but the OneNote feature will be gracefully disabled at runtime.
 
 ### 4. Hugging Face Models
 
@@ -230,14 +234,36 @@ Configure the Python runtime using environment variables:
 - `ATLASAI_CHUNK_SIZE` - Size of text chunks (default: `800`)
 - `ATLASAI_CHUNK_OVERLAP` - Overlap between chunks (default: `150`)
 
+#### OneNote Integration (Windows Only)
+
+AtlasAI can ingest Microsoft OneNote documents using the OneNote COM API:
+
+- `ENABLE_ONENOTE` - Enable OneNote document ingestion (default: `false`, set to `true` to enable)
+- `ONENOTE_RUNBOOK_PATH` - UNC or local path to OneNote files (default: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`)
+
+**Requirements:**
+- Windows OS with OneNote 2016 or Office 365 installed
+- Python package `pywin32` (included in requirements.txt)
+- Network access to UNC paths if using remote OneNote files
+
+**Features:**
+- Recursively processes all `.one` files in the specified directory
+- Exports each OneNote page to HTML and extracts clean text
+- Preserves metadata (notebook, section, page title, source path)
+- Automatically deduplicates pages by page ID
+- Gracefully degrades if OneNote is not installed (logs warning and continues)
+- Handles locked files and access errors without crashing
+
 Example:
 ```bash
 # Windows (PowerShell)
 $env:ATLASAI_EMBEDDING_MODEL="D:\models\embeddings"
 $env:ATLASAI_TEXT_GEN_MODEL="D:\models\flan-t5-small"
+$env:ENABLE_ONENOTE="true"
+$env:ONENOTE_RUNBOOK_PATH="\\server\share\OneNote\Runbook"
 python -m atlasai_runtime
 
-# Unix/Linux/macOS
+# Unix/Linux/macOS (OneNote not available on these platforms)
 export ATLASAI_EMBEDDING_MODEL="/home/user/models/embeddings"
 export ATLASAI_TEXT_GEN_MODEL="/home/user/models/flan-t5-small"
 python -m atlasai_runtime
@@ -277,6 +303,23 @@ Open `http://localhost:8000/docs` in your browser to access the interactive Fast
 
 Place PDF or DOCX files in the `documents/` folder. The runtime will automatically load them when processing queries.
 
+### Adding OneNote Documents (Windows Only)
+
+To ingest OneNote documents:
+
+1. Set the environment variable `ENABLE_ONENOTE=true`
+2. Configure the `ONENOTE_RUNBOOK_PATH` to point to your OneNote files (default is the Model Manager Runbook UNC path)
+3. Ensure OneNote 2016 or Office 365 is installed on your Windows machine
+4. Restart the runtime to trigger OneNote document ingestion
+
+The system will:
+- Recursively find all `.one` files in the specified path
+- Export each page to HTML and extract clean text
+- Add the content to the RAG corpus alongside PDF/DOCX files
+- Store metadata including notebook, section, and page titles
+
+**Note:** OneNote ingestion happens during runtime initialization. If the OneNote COM API is unavailable or files are inaccessible, the system will log warnings and continue without OneNote documents.
+
 ## Troubleshooting
 
 ### "Python runtime failed to start"
@@ -293,6 +336,15 @@ Place PDF or DOCX files in the `documents/` folder. The runtime will automatical
 - Verify PDF/DOCX files exist in the `documents/` folder
 - Check that file paths are correct
 - Ensure PDFs contain extractable text (not scanned images without OCR)
+- If using OneNote, verify `ENABLE_ONENOTE=true` and `ONENOTE_RUNBOOK_PATH` is set correctly
+
+### OneNote documents not being ingested
+- Ensure you're running on Windows with OneNote 2016 or Office 365 installed
+- Verify `ENABLE_ONENOTE` is set to `true`
+- Check that the `ONENOTE_RUNBOOK_PATH` is accessible (test with Windows Explorer)
+- For UNC paths, ensure you have network access and proper permissions
+- Check the application logs for specific error messages
+- If OneNote is not installed, the system will gracefully skip OneNote ingestion
 
 ### Port already in use
 - Change the runtime port using environment variables or command-line arguments
