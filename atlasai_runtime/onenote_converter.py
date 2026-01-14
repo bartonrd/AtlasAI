@@ -11,6 +11,7 @@ from pathlib import Path
 # Configuration constants
 MAX_PROPERTIES = 50  # Maximum number of properties to include in PDF
 MAX_EMBEDDED_FILES = 20  # Maximum number of embedded files to list in PDF
+MAX_PROPERTY_VALUE_LENGTH = 500  # Maximum length for property values in debug output
 
 
 def convert_onenote_to_pdf(one_file_path: str, output_pdf_path: str) -> bool:
@@ -94,6 +95,13 @@ def convert_onenote_to_pdf(one_file_path: str, output_pdf_path: str) -> bool:
         return False
 
 
+def _has_text_hint(key: str) -> bool:
+    """Check if a property key might contain text content."""
+    text_hints = ['text', 'string', 'data', 'content', 'title', 'author']
+    key_lower = key.lower()
+    return any(hint in key_lower for hint in text_hints)
+
+
 def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
     """
     Extract text content from a OneNote file.
@@ -145,12 +153,12 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
                                         text_str = text_data.decode('utf-16-le', errors='ignore').strip()
                                         if text_str:
                                             text_content.append(text_str)
-                                    except:
+                                    except (UnicodeDecodeError, AttributeError):
                                         try:
                                             text_str = text_data.decode('utf-8', errors='ignore').strip()
                                             if text_str:
                                                 text_content.append(text_str)
-                                        except:
+                                        except (UnicodeDecodeError, AttributeError):
                                             pass
                                 elif isinstance(text_data, str) and text_data.strip():
                                     text_content.append(text_data.strip())
@@ -191,15 +199,14 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
                         
                         if isinstance(val, dict):
                             # List all keys that might contain useful information
-                            text_keys = [k for k in val.keys() if any(text_hint in k.lower() 
-                                for text_hint in ['text', 'string', 'data', 'content', 'title', 'author'])]
+                            text_keys = [k for k in val.keys() if _has_text_hint(k)]
                             
                             if text_keys:
                                 content_lines.append(f"Property Type: {prop_type}")
                                 for key in text_keys:
                                     value = val[key]
                                     if value:
-                                        value_str = str(value)[:500]  # Limit length
+                                        value_str = str(value)[:MAX_PROPERTY_VALUE_LENGTH]  # Limit length
                                         content_lines.append(f"  {key}: {value_str}")
                                 content_lines.append("")
         except Exception as e:
