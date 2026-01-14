@@ -138,7 +138,7 @@ def initialize_session_state():
         # Create initial chat
         initial_id = str(uuid.uuid4())
         st.session_state.chats[initial_id] = {
-            "name": "Chat 1",
+            "name": "New Chat",
             "created_at": datetime.now(),
             "messages": []
         }
@@ -156,12 +156,27 @@ initialize_session_state()
 # ---------------------------
 # Helper Functions for Chat Management
 # ---------------------------
+def generate_chat_name(message: str, max_length: int = 30) -> str:
+    """Generate a short chat name from a message"""
+    if not message:
+        return "New Chat"
+    
+    # Remove extra whitespace and newlines
+    clean_msg = " ".join(message.split())
+    
+    # Truncate to max_length
+    if len(clean_msg) <= max_length:
+        return clean_msg
+    
+    # Truncate and add ellipsis
+    return clean_msg[:max_length].rsplit(' ', 1)[0] + "..."
+
 def create_new_chat():
     """Create a new chat instance"""
     st.session_state.chat_counter += 1
     new_id = str(uuid.uuid4())
     st.session_state.chats[new_id] = {
-        "name": f"Chat {st.session_state.chat_counter}",
+        "name": "New Chat",
         "created_at": datetime.now(),
         "messages": []
     }
@@ -173,6 +188,11 @@ def delete_chat(chat_id):
         del st.session_state.chats[chat_id]
         if st.session_state.current_chat_id == chat_id:
             st.session_state.current_chat_id = list(st.session_state.chats.keys())[0]
+
+def rename_chat(chat_id, new_name):
+    """Rename a chat instance"""
+    if chat_id in st.session_state.chats:
+        st.session_state.chats[chat_id]["name"] = new_name
 
 def get_current_chat():
     """Get the current chat instance"""
@@ -201,20 +221,52 @@ with st.sidebar:
         
         # List all chats
         for chat_id, chat_data in st.session_state.chats.items():
-            col1, col2 = st.columns([4, 1])
+            is_current = chat_id == st.session_state.current_chat_id
+            
+            # Create columns for chat button, edit button, and delete button
+            col1, col2, col3 = st.columns([6, 1, 1])
+            
             with col1:
                 if st.button(
                     chat_data["name"],
                     key=f"chat_{chat_id}",
                     use_container_width=True,
-                    type="primary" if chat_id == st.session_state.current_chat_id else "secondary"
+                    type="primary" if is_current else "secondary"
                 ):
                     st.session_state.current_chat_id = chat_id
                     st.rerun()
+            
             with col2:
+                # Edit button - use popover for rename
+                if st.button("✏️", key=f"edit_{chat_id}"):
+                    # Set a flag to show the rename input for this chat
+                    st.session_state[f"renaming_{chat_id}"] = True
+                    st.rerun()
+            
+            with col3:
                 if len(st.session_state.chats) > 1:
                     if st.button("🗑️", key=f"del_{chat_id}"):
                         delete_chat(chat_id)
+                        st.rerun()
+            
+            # Show rename input if edit was clicked
+            if st.session_state.get(f"renaming_{chat_id}", False):
+                new_name = st.text_input(
+                    "New name:",
+                    value=chat_data["name"],
+                    key=f"rename_input_{chat_id}",
+                    max_chars=50
+                )
+                col_save, col_cancel = st.columns(2)
+                with col_save:
+                    if st.button("Save", key=f"save_{chat_id}", use_container_width=True):
+                        if new_name.strip():
+                            rename_chat(chat_id, new_name.strip())
+                        st.session_state[f"renaming_{chat_id}"] = False
+                        st.rerun()
+                with col_cancel:
+                    if st.button("Cancel", key=f"cancel_{chat_id}", use_container_width=True):
+                        st.session_state[f"renaming_{chat_id}"] = False
                         st.rerun()
     
     with tab2:
@@ -297,6 +349,10 @@ if prompt_text:
         "role": "user",
         "content": prompt_text
     })
+    
+    # Auto-name chat based on first message if still using default name
+    if len(current_chat["messages"]) == 1 and current_chat["name"] == "New Chat":
+        current_chat["name"] = generate_chat_name(prompt_text)
     
     # Display user message
     with st.chat_message("user"):
