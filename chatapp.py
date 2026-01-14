@@ -52,6 +52,7 @@ DEFAULT_TOP_K = 4  # number of chunks retrieved
 DEFAULT_CHUNK_SIZE = 800  # reduced from 1000 to fit within model token limits
 DEFAULT_CHUNK_OVERLAP = 150
 MAX_CHUNK_OVERLAP = 1000  # maximum allowed overlap regardless of chunk size
+MAX_OVERLAP_PERCENTAGE = 0.5  # chunk overlap should not exceed 50% of chunk size
 
 # Chat configuration
 DEFAULT_CHAT_NAME = "New Chat"
@@ -267,8 +268,9 @@ def validate_settings(top_k, chunk_size, chunk_overlap):
         errors.append("Chunk Overlap must be a non-negative integer")
     elif chunk_overlap >= chunk_size:
         errors.append("Chunk Overlap must be less than Chunk Size")
-    elif chunk_overlap > chunk_size * 0.5:
-        errors.append("Chunk Overlap should not exceed 50% of Chunk Size for best results")
+    elif chunk_overlap > chunk_size * MAX_OVERLAP_PERCENTAGE:
+        max_percent = int(MAX_OVERLAP_PERCENTAGE * 100)
+        errors.append(f"Chunk Overlap should not exceed {max_percent}% of Chunk Size for best results")
     
     return errors
 
@@ -369,6 +371,7 @@ with st.sidebar:
         
         # Chunk Overlap setting
         # Ensure overlap value is clamped to be less than chunk size
+        # (overlap must be strictly less than chunk_size to avoid duplicate content)
         max_overlap = min(chunk_size_input - 1, MAX_CHUNK_OVERLAP)
         current_overlap = min(st.session_state.chunk_overlap, max_overlap)
         
@@ -383,11 +386,12 @@ with st.sidebar:
         
         # Validate settings
         validation_errors = validate_settings(top_k_input, chunk_size_input, chunk_overlap_input)
+        has_validation_errors = len(validation_errors) > 0
         
         # Apply button
-        apply_button = st.button("Apply Settings", use_container_width=True, disabled=len(validation_errors) > 0)
+        apply_button = st.button("Apply Settings", use_container_width=True, disabled=has_validation_errors)
         
-        if apply_button and len(validation_errors) == 0:
+        if apply_button and not has_validation_errors:
             st.session_state.top_k = top_k_input
             st.session_state.chunk_size = chunk_size_input
             st.session_state.chunk_overlap = chunk_overlap_input
@@ -395,7 +399,7 @@ with st.sidebar:
             st.rerun()
         
         # Display validation errors at the bottom
-        if validation_errors:
+        if has_validation_errors:
             st.divider()
             error_message = "**Settings Validation Errors:**\n\n" + "\n".join([f"❌ {error}" for error in validation_errors])
             st.error(error_message)
