@@ -109,6 +109,57 @@ def _has_text_hint(key: str) -> bool:
     return any(hint in key_lower for hint in text_hints)
 
 
+def _is_hex_string(s: str) -> bool:
+    """Check if a string is a hex-encoded string (and likely contains readable text)."""
+    if len(s) < 20 or len(s) % 2 != 0:  # At least 10 chars of text when decoded
+        return False
+    # Must be all hex characters
+    return all(c in '0123456789abcdefABCDEF' for c in s)
+
+
+def _decode_hex_if_needed(s: str) -> str:
+    """Decode hex string to text if it's a hex-encoded string."""
+    if _is_hex_string(s):
+        try:
+            decoded = bytes.fromhex(s).decode('utf-8', errors='ignore')
+            # Only return decoded if it's mostly readable
+            if decoded and _is_readable_text(decoded):
+                return decoded.strip()
+        except:
+            pass
+    return s
+
+
+def _is_readable_text(s: str) -> bool:
+    """Check if a string contains mostly readable text."""
+    if not s or len(s) < 3:
+        return False
+    
+    # Check for byte string representations
+    if s.startswith("b'") or s.startswith('b"'):
+        return False
+    
+    # Count printable characters (excluding nulls and control chars)
+    printable_count = sum(1 for c in s if c.isprintable() and c not in '\x00\n')
+    total_count = len(s)
+    
+    # String should be at least 50% printable
+    if total_count > 0 and printable_count / total_count < 0.5:
+        return False
+    
+    # Check for repetitive characters (like "nnnnnnnnn")
+    if len(s) > 10:
+        # Count most common character
+        from collections import Counter
+        char_counts = Counter(s)
+        most_common_char, most_common_count = char_counts.most_common(1)[0]
+        # If one character makes up more than 80% of the string, it's probably garbage
+        if most_common_count / len(s) > 0.8:
+            return False
+    
+    return True
+
+
 def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
     """
     Extract text content from a OneNote file.
@@ -170,10 +221,11 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
                             elif isinstance(value, str) and value.strip():
                                 # Skip properties that are clearly not content
                                 if not any(skip in key.lower() for skip in SKIP_PROPERTY_PATTERNS):
-                                    # This might be actual text content
-                                    text = value.strip()
-                                    # Only add if it looks like real content (not just a single word or ID)
-                                    if len(text) > MIN_TEXT_LENGTH and not text.isdigit():
+                                    # Decode hex if needed
+                                    text = _decode_hex_if_needed(value.strip())
+                                    
+                                    # Only add if it looks like real content
+                                    if len(text) > MIN_TEXT_LENGTH and not text.isdigit() and _is_readable_text(text):
                                         # Avoid adding the same text multiple times (O(1) lookup)
                                         if text not in text_content_set:
                                             text_content.append(text)
