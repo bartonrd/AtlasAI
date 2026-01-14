@@ -125,6 +125,18 @@ def to_bullets(text: str, min_items: int = 3, max_items: int = 10) -> str:
     bullets = [f"- {p}" for p in cleaned[:max_items]]
     return "\n".join(bullets)
 
+def thinking_message(text: str) -> str:
+    """
+    Format a thinking/processing message with lighter color and italic styling.
+    
+    Args:
+        text: The message to display (e.g., "Thinking...", "Loading documents...")
+    
+    Returns:
+        Formatted HTML string with consistent styling
+    """
+    return f'<span style="color: #888888; font-style: italic;">{text}</span>'
+
 # ---------------------------
 # Session State Initialization
 # ---------------------------
@@ -182,16 +194,6 @@ def get_current_chat():
 # Streamlit UI - Sidebar
 # ---------------------------
 st.set_page_config(page_title="AtlasAI Chat", layout="wide")
-
-# Add custom CSS for thinking indicator
-st.markdown("""
-<style>
-.thinking-text {
-    color: #888888;
-    font-style: italic;
-}
-</style>
-""", unsafe_allow_html=True)
 
 with st.sidebar:
     st.title("AtlasAI")
@@ -316,12 +318,12 @@ if prompt_text:
     with st.chat_message("assistant"):
         thinking_placeholder = st.empty()
         sources_placeholder = st.empty()
-        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Thinking...</span>', unsafe_allow_html=True)
+        thinking_placeholder.markdown(thinking_message("Thinking..."), unsafe_allow_html=True)
 
         # ---------------------------
         # 1) Load documents (PDF + DOCX)
         # ---------------------------
-        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Loading documents...</span>', unsafe_allow_html=True)
+        thinking_placeholder.markdown(thinking_message("Loading documents..."), unsafe_allow_html=True)
         docs = []
         missing = []
 
@@ -353,7 +355,7 @@ if prompt_text:
         # ---------------------------
         # 2) Split documents
         # ---------------------------
-        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Processing documents...</span>', unsafe_allow_html=True)
+        thinking_placeholder.markdown(thinking_message("Processing documents..."), unsafe_allow_html=True)
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=CHUNK_SIZE,
             chunk_overlap=CHUNK_OVERLAP,
@@ -367,7 +369,7 @@ if prompt_text:
         # ---------------------------
         # 3) Embeddings + FAISS
         # ---------------------------
-        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Creating embeddings...</span>', unsafe_allow_html=True)
+        thinking_placeholder.markdown(thinking_message("Creating embeddings..."), unsafe_allow_html=True)
         try:
             embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
             _ = embeddings.embed_query("probe")  # quick check
@@ -385,7 +387,7 @@ if prompt_text:
         # ---------------------------
         # 4) Local Hugging Face pipeline LLM (deterministic for clean bullets)
         # ---------------------------
-        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Loading language model...</span>', unsafe_allow_html=True)
+        thinking_placeholder.markdown(thinking_message("Loading language model..."), unsafe_allow_html=True)
         try:
             tokenizer = AutoTokenizer.from_pretrained(LOCAL_TEXT_GEN_MODEL)
             model = AutoModelForSeq2SeqLM.from_pretrained(LOCAL_TEXT_GEN_MODEL)
@@ -443,7 +445,7 @@ Answer (markdown bullets only):
         # ---------------------------
         # 7) Run the chain (use invoke to avoid deprecation warning)
         # ---------------------------
-        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Generating answer...</span>', unsafe_allow_html=True)
+        thinking_placeholder.markdown(thinking_message("Generating answer..."), unsafe_allow_html=True)
         result = qa.invoke({"query": prompt_text})
         answer = result.get("result", "")
         sources = result.get("source_documents", [])
