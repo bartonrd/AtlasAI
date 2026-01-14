@@ -12,6 +12,13 @@ from pathlib import Path
 MAX_PROPERTIES = 50  # Maximum number of properties to include in PDF
 MAX_EMBEDDED_FILES = 20  # Maximum number of embedded files to list in PDF
 MAX_PROPERTY_VALUE_LENGTH = 500  # Maximum length for property values in debug output
+MIN_TEXT_LENGTH = 2  # Minimum length for text to be considered content
+
+# Property keys to skip when extracting text content
+SKIP_PROPERTY_PATTERNS = [
+    'guid', 'id', 'color', 'style', 'format', 'index',
+    'offset', 'time', 'date', 'path', 'url', 'reference'
+]
 
 
 def convert_onenote_to_pdf(one_file_path: str, output_pdf_path: str) -> bool:
@@ -121,6 +128,7 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
     
     # Extract text content from properties
     text_content = []
+    text_content_set = set()  # Track text to avoid duplicates with O(1) lookup
     title_found = False
     authors = set()  # Track authors to avoid duplicates
     metadata = {}
@@ -161,17 +169,15 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
                             # Extract actual text content from string properties
                             elif isinstance(value, str) and value.strip():
                                 # Skip properties that are clearly not content
-                                if not any(skip in key.lower() for skip in [
-                                    'guid', 'id', 'color', 'style', 'format', 'index', 
-                                    'offset', 'time', 'date', 'path', 'url', 'reference'
-                                ]):
+                                if not any(skip in key.lower() for skip in SKIP_PROPERTY_PATTERNS):
                                     # This might be actual text content
                                     text = value.strip()
                                     # Only add if it looks like real content (not just a single word or ID)
-                                    if len(text) > 2 and not text.isdigit():
-                                        # Avoid adding the same text multiple times
-                                        if text not in text_content:
+                                    if len(text) > MIN_TEXT_LENGTH and not text.isdigit():
+                                        # Avoid adding the same text multiple times (O(1) lookup)
+                                        if text not in text_content_set:
                                             text_content.append(text)
+                                            text_content_set.add(text)
     except Exception as e:
         content_lines.append(f"Error extracting text content: {e}")
     
