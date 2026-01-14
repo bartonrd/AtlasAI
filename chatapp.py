@@ -266,7 +266,8 @@ def validate_settings(top_k, chunk_size, chunk_overlap):
     elif chunk_overlap >= chunk_size:
         errors.append("Chunk Overlap must be less than Chunk Size")
     elif chunk_overlap > chunk_size * MAX_OVERLAP_PERCENTAGE:
-        errors.append(f"Chunk Overlap should not exceed {int(MAX_OVERLAP_PERCENTAGE * 100)}% of Chunk Size for best results")
+        max_percent = int(MAX_OVERLAP_PERCENTAGE * 100)
+        errors.append(f"Chunk Overlap should not exceed {max_percent}% of Chunk Size for best results")
     
     return errors
 
