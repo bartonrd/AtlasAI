@@ -33,7 +33,7 @@ The application consists of two main components:
 ## Features
 
 - **Local LLM Processing**: Uses offline Hugging Face models (FLAN-T5) for text generation
-- **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
+- **RAG System**: Retrieves relevant context from PDF/DOCX/OneNote documents before answering
 - **HTTP API**: Clean boundary between C# host and Python runtime
 - **Offline-First**: No required external SaaS dependencies
 - **Interactive Console**: Simple chat interface in the C# application
@@ -224,6 +224,7 @@ dotnet run
 Configure the Python runtime using environment variables:
 
 - `ATLASAI_DOCUMENTS_DIR` - Path to documents folder (default: `./documents`)
+- `ATLASAI_ONENOTE_RUNBOOK_PATH` - Path to OneNote runbook directory (default: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`)
 - `ATLASAI_EMBEDDING_MODEL` - Path to embedding model (default: `C:\models\all-MiniLM-L6-v2`)
 - `ATLASAI_TEXT_GEN_MODEL` - Path to text generation model (default: `C:\models\flan-t5-base`)
 - `ATLASAI_TOP_K` - Number of document chunks to retrieve (default: `4`)
@@ -235,11 +236,13 @@ Example:
 # Windows (PowerShell)
 $env:ATLASAI_EMBEDDING_MODEL="D:\models\embeddings"
 $env:ATLASAI_TEXT_GEN_MODEL="D:\models\flan-t5-small"
+$env:ATLASAI_ONENOTE_RUNBOOK_PATH="\\server\path\to\runbook"
 python -m atlasai_runtime
 
 # Unix/Linux/macOS
 export ATLASAI_EMBEDDING_MODEL="/home/user/models/embeddings"
 export ATLASAI_TEXT_GEN_MODEL="/home/user/models/flan-t5-small"
+export ATLASAI_ONENOTE_RUNBOOK_PATH="/mnt/network/path/to/runbook"
 python -m atlasai_runtime
 ```
 
@@ -275,7 +278,16 @@ Open `http://localhost:8000/docs` in your browser to access the interactive Fast
 
 ## Adding Documents
 
-Place PDF or DOCX files in the `documents/` folder. The runtime will automatically load them when processing queries.
+Place PDF, DOCX, or OneNote (.one) files in the `documents/` folder. The runtime will automatically load them when processing queries.
+
+### OneNote Document Support
+
+AtlasAI now supports Microsoft OneNote (.one) files. OneNote files from the Model Manager Runbook are automatically loaded from the configured path. To add your own OneNote files:
+
+1. Place .one files in the `documents/` folder, or
+2. Configure the `ATLASAI_ONENOTE_RUNBOOK_PATH` environment variable to point to a directory containing .one files
+
+**Note**: OneNote text extraction is limited to basic content. For best results, consider converting complex OneNote notebooks to PDF or DOCX format.
 
 ## Troubleshooting
 
