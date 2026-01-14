@@ -71,13 +71,18 @@ class RAGEngine:
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
 
-        # Lazy initialization
+        # Lazy initialization for models
         self._embeddings = None
         self._llm = None
         self._qa_chain = None
         
         # Convert OneNote files to PDF on initialization
         self._convert_onenote_runbook()
+        
+        # Eagerly initialize the QA chain with all documents
+        print("Initializing RAG corpus...")
+        self._qa_chain = self._create_qa_chain()
+        print("RAG corpus initialized and ready for queries")
     
     def _convert_onenote_runbook(self):
         """
@@ -287,8 +292,11 @@ Answer (markdown bullets only):
         Returns:
             Dictionary with 'answer' and 'sources' keys
         """
-        # Create QA chain (recreates if documents changed)
-        qa_chain = self._create_qa_chain(additional_documents)
+        # Use existing QA chain, or recreate if additional documents are provided
+        if additional_documents:
+            qa_chain = self._create_qa_chain(additional_documents)
+        else:
+            qa_chain = self._qa_chain
 
         # Run the chain
         result = qa_chain.invoke({"query": question})
