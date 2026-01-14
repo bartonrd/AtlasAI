@@ -5,7 +5,7 @@ Document processing service - handles loading and splitting documents
 import os
 import re
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
@@ -124,7 +124,7 @@ class DocumentService:
         else:
             raise ValueError(f"Unsupported file type: {ext}")
     
-    def load_documents(self, paths: List[Path]) -> tuple[List[Document], List[str]]:
+    def load_documents(self, paths: List[Path]) -> Tuple[List[Document], List[str]]:
         """
         Load multiple documents
         
@@ -169,7 +169,7 @@ class DocumentService:
         
         return splits
     
-    def process_documents(self, paths: List[Path]) -> tuple[List[Document], List[str]]:
+    def process_documents(self, paths: List[Path]) -> Tuple[List[Document], List[str]]:
         """
         Load and split documents in one operation
         

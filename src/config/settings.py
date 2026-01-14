@@ -4,7 +4,7 @@ Centralized configuration management for AtlasAI
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 from dataclasses import dataclass, field
 
 
@@ -59,7 +59,7 @@ class RAGConfig:
     max_overlap_percentage: float = 0.5
     max_top_k: int = 20
     
-    def validate(self) -> list[str]:
+    def validate(self) -> List[str]:
         """Validate RAG configuration settings"""
         errors = []
         
@@ -97,7 +97,7 @@ class PathConfig:
         self.cache_dir.mkdir(exist_ok=True, parents=True)
         self.temp_dir.mkdir(exist_ok=True, parents=True)
     
-    def get_default_documents(self) -> list[Path]:
+    def get_default_documents(self) -> List[Path]:
         """Get list of default document paths"""
         default_docs = [
             self.documents_dir / "distribution_model_manager_user_guide.pdf",

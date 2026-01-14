@@ -71,6 +71,9 @@ class LLMService:
     def generation_pipeline(self):
         """Get or create generation pipeline (lazy loading with caching)"""
         if self._pipeline is None:
+            # Ensure model is loaded first to set _model_type
+            _ = self.model
+            
             # Determine task type based on model
             task = "text2text-generation" if hasattr(self, '_model_type') and self._model_type == "seq2seq" else "text-generation"
             
