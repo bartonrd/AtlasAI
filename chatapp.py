@@ -44,8 +44,8 @@ DOCX_PATHS = [
 EMBEDDING_MODEL = r"C:\models\all-MiniLM-L6-v2"
 LOCAL_TEXT_GEN_MODEL = r"C:\models\flan-t5-base"  # or flan-t5-small for faster CPU runs
 
-TOP_K = 4  # number of chunks retrieved
-CHUNK_SIZE = 1000
+TOP_K = 2  # number of chunks retrieved (reduced to avoid token limit issues)
+CHUNK_SIZE = 800  # reduced from 1000 to fit within model token limits
 CHUNK_OVERLAP = 150
 
 # ---------------------------
@@ -227,6 +227,8 @@ if prompt_text:
             tokenizer=tokenizer,
             max_new_tokens=384,  # tighter output
             do_sample=False,     # deterministic; avoids temperature warnings for T5
+            truncation=True,     # truncate inputs that exceed max length
+            max_length=512,      # FLAN-T5 max input length
             # For variety:
             # do_sample=True, temperature=0.2, top_p=0.9, top_k=50
         )
