@@ -145,7 +145,7 @@ namespace AtlasAI
                         LaunchStreamlitUI(config);
                     }
                 }
-                Thread.Sleep(100);
+                Thread.Sleep(250); // Check every 250ms for better performance
             }
         }
 

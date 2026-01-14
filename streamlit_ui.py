@@ -13,7 +13,14 @@ RUNTIME_HOST = os.getenv("ATLASAI_RUNTIME_HOST", "127.0.0.1")
 RUNTIME_PORT = int(os.getenv("ATLASAI_RUNTIME_PORT", "8000"))
 RUNTIME_BASE_URL = f"http://{RUNTIME_HOST}:{RUNTIME_PORT}"
 
+# Timeout constants
+HEALTH_CHECK_TIMEOUT = 5
+CHAT_REQUEST_TIMEOUT = 120
+
 DEFAULT_CHAT_NAME = "New Chat"
+
+# HTTP session for connection reuse
+http_session = requests.Session()
 
 # ---------------------------
 # Session State Initialization
@@ -99,26 +106,26 @@ def get_current_chat():
 def check_runtime_health():
     """Check if the runtime is healthy"""
     try:
-        response = requests.get(f"{RUNTIME_BASE_URL}/health", timeout=5)
+        response = http_session.get(f"{RUNTIME_BASE_URL}/health", timeout=HEALTH_CHECK_TIMEOUT)
         if response.status_code == 200:
             data = response.json()
             return data.get("status") == "healthy", data.get("message", "")
         return False, "Runtime not responding"
-    except requests.RequestException as e:
-        return False, f"Connection error: {str(e)}"
+    except requests.RequestException:
+        return False, "Unable to connect to runtime. Please ensure it's running on localhost:8000"
 
 def send_chat_message(message: str):
     """Send a chat message to the runtime and get response"""
     try:
-        response = requests.post(
+        response = http_session.post(
             f"{RUNTIME_BASE_URL}/chat",
             json={"message": message},
-            timeout=120
+            timeout=CHAT_REQUEST_TIMEOUT
         )
         response.raise_for_status()
         return response.json()
     except requests.RequestException as e:
-        st.error(f"Error communicating with runtime: {str(e)}")
+        st.error("Unable to get response from runtime. Please check the runtime status.")
         return None
 
 # ---------------------------
