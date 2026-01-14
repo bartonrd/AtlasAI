@@ -432,3 +432,6 @@ build/
 
 # Streamlit
 .streamlit/
+
+# AtlasAI cache
+.cache/
