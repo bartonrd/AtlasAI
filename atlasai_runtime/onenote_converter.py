@@ -125,7 +125,7 @@ def _decode_hex_if_needed(s: str) -> str:
             # Only return decoded if it's mostly readable
             if decoded and _is_readable_text(decoded):
                 return decoded.strip()
-        except:
+        except (ValueError, UnicodeDecodeError):
             pass
     return s
 
@@ -139,8 +139,8 @@ def _is_readable_text(s: str) -> bool:
     if s.startswith("b'") or s.startswith('b"'):
         return False
     
-    # Count printable characters (excluding nulls and control chars)
-    printable_count = sum(1 for c in s if c.isprintable() and c not in '\x00\n')
+    # Count printable characters (excluding only null bytes)
+    printable_count = sum(1 for c in s if c.isprintable() and c != '\x00')
     total_count = len(s)
     
     # String should be at least 50% printable
