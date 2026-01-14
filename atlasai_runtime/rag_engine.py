@@ -83,8 +83,12 @@ class RAGEngine:
         # Create runbook directory path
         runbook_output_dir = os.path.join(self.documents_dir, "runbook")
         
-        print(f"Converting OneNote files from: {self.onenote_runbook_path}")
+        print("=" * 70)
+        print("OneNote to PDF Conversion")
+        print("=" * 70)
+        print(f"Source directory: {self.onenote_runbook_path}")
         print(f"Output directory: {runbook_output_dir}")
+        print(f"Source exists: {os.path.exists(self.onenote_runbook_path)}")
         
         # Convert all .one files to PDF
         converted_count = convert_onenote_directory(
@@ -94,9 +98,23 @@ class RAGEngine:
         )
         
         if converted_count > 0:
-            print(f"Successfully converted {converted_count} OneNote file(s) to PDF")
+            print(f"✓ Successfully converted {converted_count} OneNote file(s) to PDF")
+            # List the converted files
+            if os.path.exists(runbook_output_dir):
+                pdf_files = [f for f in os.listdir(runbook_output_dir) if f.lower().endswith('.pdf')]
+                print(f"✓ PDF files in runbook directory: {len(pdf_files)}")
+                for pdf_file in pdf_files[:5]:  # Show first 5
+                    pdf_path = os.path.join(runbook_output_dir, pdf_file)
+                    size = os.path.getsize(pdf_path)
+                    print(f"  - {pdf_file} ({size:,} bytes)")
+                if len(pdf_files) > 5:
+                    print(f"  ... and {len(pdf_files) - 5} more")
         else:
-            print("No OneNote files were converted")
+            print("⚠ No OneNote files were converted")
+            if not os.path.exists(self.onenote_runbook_path):
+                print(f"  Reason: Source directory does not exist")
+                print(f"  Tip: Set ATLASAI_ONENOTE_RUNBOOK_PATH environment variable to your OneNote files location")
+        print("=" * 70)
 
     def _load_documents(self, additional_paths: Optional[List[str]] = None) -> List[Any]:
         """
@@ -110,6 +128,8 @@ class RAGEngine:
         """
         docs = []
         missing = []
+        
+        print(f"Loading documents from: {self.documents_dir}")
 
         # Load default documents from documents directory (including subdirectories)
         if os.path.exists(self.documents_dir):
@@ -121,13 +141,17 @@ class RAGEngine:
                     
                     try:
                         if ext == ".pdf":
-                            docs.extend(PyPDFLoader(filepath).load())
-                            print(f"Loaded PDF: {os.path.relpath(filepath, self.documents_dir)}")
+                            loaded_docs = PyPDFLoader(filepath).load()
+                            docs.extend(loaded_docs)
+                            print(f"Loaded PDF: {os.path.relpath(filepath, self.documents_dir)} ({len(loaded_docs)} pages)")
                         elif ext == ".docx":
-                            docs.extend(Docx2txtLoader(filepath).load())
-                            print(f"Loaded DOCX: {os.path.relpath(filepath, self.documents_dir)}")
+                            loaded_docs = Docx2txtLoader(filepath).load()
+                            docs.extend(loaded_docs)
+                            print(f"Loaded DOCX: {os.path.relpath(filepath, self.documents_dir)} ({len(loaded_docs)} pages)")
                     except Exception as e:
                         print(f"Warning: Failed to read {filepath}: {e}")
+        else:
+            print(f"Warning: Documents directory does not exist: {self.documents_dir}")
 
         # Load additional documents
         if additional_paths:
@@ -150,6 +174,8 @@ class RAGEngine:
 
         if not docs:
             raise ValueError("No documents loaded")
+        
+        print(f"Total documents loaded: {len(docs)} pages/chunks")
 
         return docs
 
