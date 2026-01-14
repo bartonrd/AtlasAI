@@ -111,39 +111,101 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
     content_lines.append(f"Source: {os.path.basename(file_path)}")
     content_lines.append("")
     
-    # Extract properties
+    # Extract text content from properties
+    text_content = []
+    title_found = False
+    
     try:
         properties = one_file.get_properties()
         if properties:
-            content_lines.append(f"Document Properties ({len(properties)} items):")
-            content_lines.append("-" * 50)
-            
-            for prop in properties[:MAX_PROPERTIES]:  # Limit properties to improve readability
+            for prop in properties:
                 if isinstance(prop, dict):
-                    prop_type = prop.get('type', 'Unknown')
-                    identity = prop.get('identity', '')
-                    
-                    content_lines.append(f"Property: {prop_type}")
-                    if identity:
-                        content_lines.append(f"  ID: {identity}")
-                    
-                    # Extract values
+                    prop_type = prop.get('type', '')
                     val = prop.get('val', {})
-                    if isinstance(val, dict):
-                        for key, value in val.items():
-                            if value and not key.startswith('_'):
-                                # Convert value to string and limit length
-                                value_str = str(value)
-                                if len(value_str) > 200:
-                                    value_str = value_str[:200] + "..."
-                                content_lines.append(f"  {key}: {value_str}")
                     
-                    content_lines.append("")
+                    if isinstance(val, dict):
+                        # Extract title strings
+                        if 'CachedTitleString' in val or 'CachedTitleStringFromPage' in val:
+                            title = val.get('CachedTitleString') or val.get('CachedTitleStringFromPage')
+                            if title and isinstance(title, str) and title.strip():
+                                if not title_found:
+                                    content_lines.append("=" * 60)
+                                    content_lines.append(f"TITLE: {title.strip()}")
+                                    content_lines.append("=" * 60)
+                                    content_lines.append("")
+                                    title_found = True
+                        
+                        # Extract text run data (actual page content)
+                        if 'TextRunData' in val:
+                            text_data = val.get('TextRunData')
+                            if text_data:
+                                # TextRunData can be bytes or string
+                                if isinstance(text_data, bytes):
+                                    try:
+                                        text_str = text_data.decode('utf-16-le', errors='ignore').strip()
+                                        if text_str:
+                                            text_content.append(text_str)
+                                    except:
+                                        try:
+                                            text_str = text_data.decode('utf-8', errors='ignore').strip()
+                                            if text_str:
+                                                text_content.append(text_str)
+                                        except:
+                                            pass
+                                elif isinstance(text_data, str) and text_data.strip():
+                                    text_content.append(text_data.strip())
+                        
+                        # Extract other string properties that might contain text
+                        for key, value in val.items():
+                            if key in ['Author', 'LastModifiedBy', 'CreatedBy', 'Subject', 'Keywords']:
+                                if value and isinstance(value, str) and value.strip():
+                                    content_lines.append(f"{key}: {value.strip()}")
     except Exception as e:
-        content_lines.append(f"Error extracting properties: {e}")
-        content_lines.append("")
+        content_lines.append(f"Error extracting text content: {e}")
     
-    # Extract embedded files
+    # Add extracted text content
+    if text_content:
+        content_lines.append("")
+        content_lines.append("CONTENT:")
+        content_lines.append("-" * 60)
+        for text in text_content:
+            if text and text.strip():
+                content_lines.append(text.strip())
+                content_lines.append("")
+    
+    # If no text was extracted, try to get raw properties for debugging
+    if not text_content and not title_found:
+        content_lines.append("")
+        content_lines.append("Note: No direct text content found. Extracting available metadata...")
+        content_lines.append("")
+        try:
+            properties = one_file.get_properties()
+            if properties:
+                content_lines.append(f"Available Properties ({len(properties)} items):")
+                content_lines.append("-" * 50)
+                
+                for prop in properties[:MAX_PROPERTIES]:
+                    if isinstance(prop, dict):
+                        prop_type = prop.get('type', 'Unknown')
+                        val = prop.get('val', {})
+                        
+                        if isinstance(val, dict):
+                            # List all keys that might contain useful information
+                            text_keys = [k for k in val.keys() if any(text_hint in k.lower() 
+                                for text_hint in ['text', 'string', 'data', 'content', 'title', 'author'])]
+                            
+                            if text_keys:
+                                content_lines.append(f"Property Type: {prop_type}")
+                                for key in text_keys:
+                                    value = val[key]
+                                    if value:
+                                        value_str = str(value)[:500]  # Limit length
+                                        content_lines.append(f"  {key}: {value_str}")
+                                content_lines.append("")
+        except Exception as e:
+            content_lines.append(f"Error extracting metadata: {e}")
+    
+    # Extract embedded files info
     try:
         files = one_file.get_files()
         if files:
@@ -151,11 +213,15 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
             content_lines.append(f"Embedded Files ({len(files)} items):")
             content_lines.append("-" * 50)
             
-            for file_info in files[:MAX_EMBEDDED_FILES]:  # Limit files to improve readability
+            for file_guid, file_info in list(files.items())[:MAX_EMBEDDED_FILES]:
                 if isinstance(file_info, dict):
-                    file_name = file_info.get('file_name', 'Unknown')
-                    file_size = file_info.get('file_size', 'Unknown')
-                    content_lines.append(f"- {file_name} (Size: {file_size})")
+                    extension = file_info.get('extension', 'Unknown')
+                    identity = file_info.get('identity', 'Unknown')
+                    content_size = len(file_info.get('content', b''))
+                    content_lines.append(f"- File: {file_guid}")
+                    content_lines.append(f"  Extension: {extension}")
+                    content_lines.append(f"  Size: {content_size} bytes")
+                    content_lines.append("")
     except Exception as e:
         content_lines.append(f"Error extracting files: {e}")
     
