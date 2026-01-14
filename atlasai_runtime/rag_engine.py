@@ -240,10 +240,12 @@ Answer (markdown bullets only):
                 source = meta.get("source", "unknown")
                 # Extract filename from path
                 source_name = os.path.basename(source)
+                # Convert page to string (PDF loaders return int, but API expects string)
+                page_str = str(page) if page is not None else "unknown"
                 source_list.append({
                     "index": i,
                     "source": source_name,
-                    "page": page,
+                    "page": page_str,
                 })
 
         return {
