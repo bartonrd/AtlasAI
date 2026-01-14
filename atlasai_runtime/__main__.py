@@ -8,7 +8,18 @@ Usage:
 import argparse
 import sys
 
-import uvicorn
+try:
+    import uvicorn
+except ImportError:
+    print("ERROR: Required dependencies are not installed.")
+    print()
+    print("Please install the required Python packages:")
+    print("    pip install -r requirements.txt")
+    print()
+    print("Or install the specific missing packages:")
+    print("    pip install fastapi uvicorn pydantic")
+    print()
+    sys.exit(1)
 
 
 def main():

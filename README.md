@@ -57,6 +57,9 @@ pip install -r requirements.txt
 ```
 
 ### 4. Hugging Face Models
+
+**Note**: Models are required for actual chat functionality. The runtime service will start and respond to `/health` checks without models, but `/chat` requests will fail.
+
 Download the following models to your local machine:
 
 - **Embedding Model**: `sentence-transformers/all-MiniLM-L6-v2`
@@ -115,13 +118,18 @@ AtlasAI/
 
 This is the recommended way to use AtlasAI. The C# host will automatically start the Python runtime.
 
-1. Build the C# application:
+1. **Install Python dependencies** (required before first run):
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Build the C# application:
    ```bash
    cd AtlasAI
    dotnet build
    ```
 
-2. Run the application:
+3. Run the application:
    ```bash
    dotnet run
    ```
