@@ -80,9 +80,13 @@ class RAGEngine:
         self._convert_onenote_runbook()
         
         # Eagerly initialize the QA chain with all documents
-        print("Initializing RAG corpus...")
-        self._qa_chain = self._create_qa_chain()
-        print("RAG corpus initialized and ready for queries")
+        try:
+            print("Initializing RAG corpus...")
+            self._qa_chain = self._create_qa_chain()
+            print("RAG corpus initialized and ready for queries")
+        except Exception as e:
+            print(f"Warning: Failed to initialize RAG corpus during startup: {e}")
+            print("RAG corpus will be initialized on first query")
     
     def _convert_onenote_runbook(self):
         """
@@ -292,9 +296,12 @@ Answer (markdown bullets only):
         Returns:
             Dictionary with 'answer' and 'sources' keys
         """
-        # Use existing QA chain, or recreate if additional documents are provided
-        if additional_documents:
+        # Use existing QA chain, or recreate if additional documents are provided or if chain not initialized
+        if additional_documents or self._qa_chain is None:
             qa_chain = self._create_qa_chain(additional_documents)
+            # Cache the chain if it wasn't initialized before
+            if self._qa_chain is None:
+                self._qa_chain = qa_chain
         else:
             qa_chain = self._qa_chain
 
