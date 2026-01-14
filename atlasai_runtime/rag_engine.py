@@ -241,7 +241,7 @@ Answer (markdown bullets only):
                 # Extract filename from path
                 source_name = os.path.basename(source)
                 # Convert page to string (PDF loaders return int, but API expects string)
-                page_str = str(page) if page is not None else "unknown"
+                page_str = str(page)
                 source_list.append({
                     "index": i,
                     "source": source_name,
