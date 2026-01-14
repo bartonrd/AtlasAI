@@ -430,5 +430,9 @@ __pycache__/
 dist/
 build/
 
+# AtlasAI cache directories
+.cache/
+*.pkl
+
 # Streamlit
 .streamlit/

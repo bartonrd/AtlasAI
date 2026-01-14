@@ -26,10 +26,10 @@ namespace AtlasAI
                     return;
                 }
                 
-                // Navigate up to the solution root (where chatapp.py is located)
+                // Navigate up to the solution root (where app.py is located)
                 // From: AtlasAI/bin/Debug/net10.0/ to AtlasAI/ (up 3 levels)
                 string solutionRoot = Path.GetFullPath(Path.Combine(executableDir, "..", "..", "..", ".."));
-                string pythonScriptPath = Path.Combine(solutionRoot, "chatapp.py");
+                string pythonScriptPath = Path.Combine(solutionRoot, "app.py");
 
                 if (!File.Exists(pythonScriptPath))
                 {
