@@ -317,7 +317,6 @@ if prompt_text:
     # Display thinking indicator with assistant icon - keep context open for entire processing
     with st.chat_message("assistant"):
         thinking_placeholder = st.empty()
-        sources_placeholder = st.empty()
         thinking_placeholder.markdown(thinking_message("Thinking..."), unsafe_allow_html=True)
 
         # ---------------------------
@@ -468,10 +467,9 @@ Answer (markdown bullets only):
         thinking_placeholder.markdown(formatted_answer)
         
         if source_list:
-            with sources_placeholder.container():
-                with st.expander("Sources"):
-                    for source_info in source_list:
-                        st.write(source_info)
+            with st.expander("Sources"):
+                for source_info in source_list:
+                    st.write(source_info)
     
     # Add assistant message to chat history
     current_chat["messages"].append({
