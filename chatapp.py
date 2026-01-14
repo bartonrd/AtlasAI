@@ -263,7 +263,7 @@ def validate_settings(top_k, chunk_size, chunk_overlap):
         errors.append("Chunk Overlap must be a non-negative integer")
     elif chunk_overlap >= chunk_size:
         errors.append("Chunk Overlap must be less than Chunk Size")
-    elif chunk_size > 0 and chunk_overlap > chunk_size * 0.5:
+    elif chunk_overlap > chunk_size * 0.5:
         errors.append("Chunk Overlap should not exceed 50% of Chunk Size for best results")
     
     return errors
@@ -364,11 +364,15 @@ with st.sidebar:
         )
         
         # Chunk Overlap setting
+        # Ensure overlap value is clamped to be less than chunk size
+        max_overlap = min(chunk_size_input - 1, 1000)
+        current_overlap = min(st.session_state.chunk_overlap, max_overlap)
+        
         chunk_overlap_input = st.number_input(
             "Chunk Overlap (characters)",
             min_value=0,
-            max_value=min(chunk_size_input - 1, 1000),
-            value=min(st.session_state.chunk_overlap, chunk_size_input - 1),
+            max_value=max_overlap,
+            value=current_overlap,
             step=10,
             help="Overlap between consecutive chunks in characters. Helps maintain context across chunk boundaries."
         )
@@ -391,9 +395,8 @@ with st.sidebar:
         # Display validation errors at the bottom
         if validation_errors:
             st.divider()
-            st.error("**Settings Validation Errors:**")
-            for error in validation_errors:
-                st.error(f"❌ {error}")
+            error_message = "**Settings Validation Errors:**\n\n" + "\n".join([f"❌ {error}" for error in validation_errors])
+            st.error(error_message)
         
         st.divider()
         st.write("**Current Active Settings:**")
