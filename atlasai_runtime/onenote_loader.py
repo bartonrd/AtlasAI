@@ -194,25 +194,31 @@ def _process_one_file(
             logger.debug(f"OpenHierarchy failed for {one_file.name}: {e}")
             # Continue anyway - file might already be open
         
-        # Get hierarchy for this notebook/section
-        # GetHierarchy signature: GetHierarchy(nodeID, scope, *pbstrHierarchyXmlOut, xsSchema)
-        # With pywin32 late binding, output parameters are returned directly
-        # We need to pass all 3 parameters: nodeID, scope, and schema (xs2013=3)
-        try:
-            xml_hierarchy = onenote.GetHierarchy(str(one_file), HS_PAGES, "")
-        except:
-            # Try with schema parameter
-            xml_hierarchy = onenote.GetHierarchy(str(one_file), HS_PAGES, "", 3)
-
-        # Parse the XML hierarchy
-        root = ET.fromstring(xml_hierarchy)
-
+        # Get ALL notebooks hierarchy first, then find our section
+        # Individual .one files are sections, not notebooks
+        # We need to get the full hierarchy and find the section by path
+        all_hierarchy_xml = onenote.GetHierarchy("", HS_PAGES)
+        all_root = ET.fromstring(all_hierarchy_xml)
+        
         # Define namespace for OneNote XML
         ns = {"one": "http://schemas.microsoft.com/office/onenote/2013/onenote"}
+        
+        # Find the section that matches our .one file path
+        target_path = str(one_file).lower()
+        pages = []
+        
+        for section in all_root.findall(".//one:Section", ns):
+            section_path = section.get("path", "")
+            if section_path.lower() == target_path:
+                # Found our section, get its pages
+                pages = section.findall(".//one:Page", ns)
+                logger.debug(f"Found {len(pages)} pages in section {one_file.name}")
+                break
+
+        # Parse the XML hierarchy
+        root = ET.fromstring(all_hierarchy_xml)
 
         # Find all pages in the hierarchy
-        pages = root.findall(".//one:Page", ns)
-
         for page in pages:
             page_id = page.get("ID")
             page_name = page.get("name", "Untitled")
