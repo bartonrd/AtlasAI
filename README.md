@@ -305,12 +305,27 @@ Place PDF or DOCX files in the `documents/` folder. The runtime will automatical
 
 ### Adding OneNote Documents (Windows Only)
 
+**Important:** OneNote ingestion is **disabled by default**. You must explicitly enable it.
+
 To ingest OneNote documents:
 
-1. Set the environment variable `ENABLE_ONENOTE=true`
-2. Configure the `ONENOTE_RUNBOOK_PATH` to point to your OneNote files (default is the Model Manager Runbook UNC path)
-3. Ensure OneNote 2016 or Office 365 is installed on your Windows machine
-4. Restart the runtime to trigger OneNote document ingestion
+1. **Enable the feature**: Set the environment variable `ENABLE_ONENOTE=true`
+2. **Configure the path**: Set `ONENOTE_RUNBOOK_PATH` to point to your OneNote files (optional - defaults to the Model Manager Runbook UNC path)
+3. **Ensure OneNote is installed**: OneNote 2016 or Office 365 must be installed on your Windows machine
+4. **Start/restart the runtime**: The ingestion happens when the runtime starts
+
+Example (Windows PowerShell):
+```powershell
+$env:ENABLE_ONENOTE="true"
+$env:ONENOTE_RUNBOOK_PATH="\\server\share\path\to\onenote"
+python -m atlasai_runtime
+```
+
+**Verification:**
+Check the runtime logs during startup. You should see:
+- `OneNote ingestion enabled. Loading from: <path>`
+- `Successfully loaded X OneNote pages from <path>`
+- `Total documents loaded: Y (including OneNote pages if enabled)`
 
 The system will:
 - Recursively find all `.one` files in the specified path
@@ -318,7 +333,10 @@ The system will:
 - Add the content to the RAG corpus alongside PDF/DOCX files
 - Store metadata including notebook, section, and page titles
 
-**Note:** OneNote ingestion happens during runtime initialization. If the OneNote COM API is unavailable or files are inaccessible, the system will log warnings and continue without OneNote documents.
+**Note:** 
+- OneNote ingestion happens during runtime initialization (when loading documents for a query)
+- If the OneNote COM API is unavailable or files are inaccessible, the system will log warnings and continue without OneNote documents
+- If you don't see OneNote pages being loaded, check that `ENABLE_ONENOTE=true` is set correctly
 
 ## Troubleshooting
 
@@ -339,12 +357,30 @@ The system will:
 - If using OneNote, verify `ENABLE_ONENOTE=true` and `ONENOTE_RUNBOOK_PATH` is set correctly
 
 ### OneNote documents not being ingested
-- Ensure you're running on Windows with OneNote 2016 or Office 365 installed
-- Verify `ENABLE_ONENOTE` is set to `true`
-- Check that the `ONENOTE_RUNBOOK_PATH` is accessible (test with Windows Explorer)
-- For UNC paths, ensure you have network access and proper permissions
-- Check the application logs for specific error messages
-- If OneNote is not installed, the system will gracefully skip OneNote ingestion
+**Most common issue: OneNote is disabled by default!**
+
+1. **Check if enabled**: Verify `ENABLE_ONENOTE` environment variable is set to `true` (not just "True" or "1", though those work too)
+2. **Check the logs**: Look for these messages during runtime startup or when making a query:
+   - `OneNote ingestion enabled. Loading from: <path>` - means it's trying to load
+   - `Successfully loaded X OneNote pages` - means it worked!
+   - `No OneNote documents found at <path>` - means path is empty or no .one files
+   - `OneNote ingestion is disabled` - means feature flag is off
+   - `OneNote enabled but ONENOTE_RUNBOOK_PATH is not set` - means you need to set the path
+3. **Verify Windows & OneNote**: Ensure you're running on Windows with OneNote 2016 or Office 365 installed
+4. **Check the path**: Verify `ONENOTE_RUNBOOK_PATH` is accessible (test with Windows Explorer)
+5. **For UNC paths**: Ensure you have network access and proper permissions
+6. **Check application logs**: Look for error messages with stack traces for more details
+
+Example to verify settings:
+```powershell
+# Check if environment variable is set
+echo $env:ENABLE_ONENOTE
+# Should output: true
+
+# Check health endpoint
+curl http://localhost:8000/health
+# Look for "enable_onenote": true in the response
+```
 
 ### Port already in use
 - Change the runtime port using environment variables or command-line arguments
