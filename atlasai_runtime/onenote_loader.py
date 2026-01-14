@@ -3,9 +3,7 @@ Custom OneNote document loader for LangChain.
 """
 
 import os
-import tempfile
 from typing import List, Iterator
-from pathlib import Path
 
 from langchain_core.documents import Document
 
@@ -40,6 +38,7 @@ class OneNoteLoader:
             
         try:
             # Import pyOneNote modules here to avoid import errors if not installed
+            # Note: The class is named 'OneDocment' (not 'OneDocument') in the pyOneNote library
             from pyOneNote.OneDocument import OneDocment
             
             # Parse the OneNote file
