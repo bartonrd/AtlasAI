@@ -138,12 +138,12 @@ The C# application will:
 - Start the Python runtime service on localhost:8000
 - Wait for the runtime to be healthy
 - Provide an interactive chat interface in the console
-- **Press 'S' to launch the Streamlit UI** for a graphical web interface
+- **Type 'ui' to launch the Streamlit UI** for a graphical web interface
 - Automatically shut down the runtime when you exit
 
 #### Using the Streamlit UI
 
-While the console is running, press 'S' to launch the Streamlit web UI. The UI provides:
+While the console is running, type `ui` and press Enter to launch the Streamlit web UI. The UI provides:
 - Multiple chat sessions with history
 - Graphical interface with source citations
 - Document-based Q&A in a user-friendly format

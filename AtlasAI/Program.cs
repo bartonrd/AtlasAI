@@ -47,16 +47,16 @@ namespace AtlasAI
                     return 1;
                 }
 
+                // Give runtime a moment to finish logging startup messages
+                await Task.Delay(500, cts.Token);
+
                 Console.WriteLine();
                 Console.WriteLine("===========================================");
                 Console.WriteLine("AtlasAI is ready! You can now ask questions.");
-                Console.WriteLine("Press 'S' to launch Streamlit UI");
-                Console.WriteLine("Press Ctrl+C to exit.");
+                Console.WriteLine("Type 'ui' to launch Streamlit UI");
+                Console.WriteLine("Type 'exit' or 'quit' to exit");
                 Console.WriteLine("===========================================");
                 Console.WriteLine();
-
-                // Check for Streamlit launch hotkey in background
-                Task.Run(() => CheckForStreamlitHotkey(config, cts.Token));
 
                 // Interactive chat loop
                 while (!cts.Token.IsCancellationRequested)
@@ -73,6 +73,14 @@ namespace AtlasAI
                         input.Equals("quit", StringComparison.OrdinalIgnoreCase))
                     {
                         break;
+                    }
+
+                    // Check for Streamlit UI launch command
+                    if (input.Equals("ui", StringComparison.OrdinalIgnoreCase) ||
+                        input.Equals("streamlit", StringComparison.OrdinalIgnoreCase))
+                    {
+                        LaunchStreamlitUI(config);
+                        continue;
                     }
 
                     try
@@ -130,22 +138,6 @@ namespace AtlasAI
                 Console.WriteLine("3. ML models downloaded to the configured paths");
                 Console.WriteLine();
                 return 1;
-            }
-        }
-
-        private static void CheckForStreamlitHotkey(AppConfiguration config, CancellationToken cancellationToken)
-        {
-            while (!cancellationToken.IsCancellationRequested)
-            {
-                if (Console.KeyAvailable)
-                {
-                    var key = Console.ReadKey(intercept: true);
-                    if (key.Key == ConsoleKey.S)
-                    {
-                        LaunchStreamlitUI(config);
-                    }
-                }
-                Thread.Sleep(250); // Check every 250ms for better performance
             }
         }
 
