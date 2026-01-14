@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Configuration from environment variables
 DOCUMENTS_DIR = os.getenv("ATLASAI_DOCUMENTS_DIR", os.path.join(os.path.dirname(os.path.dirname(__file__)), "documents"))
+ONENOTE_RUNBOOK_PATH = os.getenv("ATLASAI_ONENOTE_RUNBOOK_PATH", r"\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook")
 EMBEDDING_MODEL = os.getenv("ATLASAI_EMBEDDING_MODEL", r"C:\models\all-MiniLM-L6-v2")
 TEXT_GEN_MODEL = os.getenv("ATLASAI_TEXT_GEN_MODEL", r"C:\models\flan-t5-base")
 TOP_K = int(os.getenv("ATLASAI_TOP_K", "4"))
@@ -39,6 +40,7 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting AtlasAI Runtime...")
     logger.info(f"Documents directory: {DOCUMENTS_DIR}")
+    logger.info(f"OneNote runbook path: {ONENOTE_RUNBOOK_PATH}")
     logger.info(f"Embedding model: {EMBEDDING_MODEL}")
     logger.info(f"Text generation model: {TEXT_GEN_MODEL}")
     logger.info(f"Settings - TOP_K: {TOP_K}, CHUNK_SIZE: {CHUNK_SIZE}, CHUNK_OVERLAP: {CHUNK_OVERLAP}")
@@ -46,6 +48,7 @@ async def lifespan(app: FastAPI):
     try:
         rag_engine = RAGEngine(
             documents_dir=DOCUMENTS_DIR,
+            onenote_runbook_path=ONENOTE_RUNBOOK_PATH,
             embedding_model=EMBEDDING_MODEL,
             text_gen_model=TEXT_GEN_MODEL,
             top_k=TOP_K,
@@ -113,6 +116,7 @@ async def health_check():
             message="RAG engine not initialized",
             config={
                 "documents_dir": DOCUMENTS_DIR,
+                "onenote_runbook_path": ONENOTE_RUNBOOK_PATH,
                 "embedding_model": EMBEDDING_MODEL,
                 "text_gen_model": TEXT_GEN_MODEL,
                 "top_k": TOP_K,
@@ -126,6 +130,7 @@ async def health_check():
         message="AtlasAI Runtime is ready",
         config={
             "documents_dir": DOCUMENTS_DIR,
+            "onenote_runbook_path": ONENOTE_RUNBOOK_PATH,
             "embedding_model": EMBEDDING_MODEL,
             "text_gen_model": TEXT_GEN_MODEL,
             "top_k": TOP_K,

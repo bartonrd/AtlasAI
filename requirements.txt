@@ -26,3 +26,4 @@ sentence-transformers>=2.3.0
 # Document loaders
 pypdf>=4.0.0
 docx2txt>=0.8
+pyOneNote>=0.0.2

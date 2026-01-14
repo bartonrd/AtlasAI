@@ -6,8 +6,9 @@ import os
 import re
 from typing import List, Dict, Any, Optional
 
-# Loaders: PDF + DOCX
+# Loaders: PDF + DOCX + OneNote
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
+from .onenote_loader import OneNoteLoader
 
 # Splitter (v1 package)
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -37,6 +38,7 @@ class RAGEngine:
     def __init__(
         self,
         documents_dir: str,
+        onenote_runbook_path: str,
         embedding_model: str,
         text_gen_model: str,
         top_k: int = 4,
@@ -48,6 +50,7 @@ class RAGEngine:
 
         Args:
             documents_dir: Path to directory containing documents
+            onenote_runbook_path: Path to directory containing OneNote runbook files
             embedding_model: Path to HuggingFace embedding model
             text_gen_model: Path to HuggingFace text generation model
             top_k: Number of chunks to retrieve
@@ -55,6 +58,7 @@ class RAGEngine:
             chunk_overlap: Overlap between chunks
         """
         self.documents_dir = documents_dir
+        self.onenote_runbook_path = onenote_runbook_path
         self.embedding_model_path = embedding_model
         self.text_gen_model_path = text_gen_model
         self.top_k = top_k
@@ -92,8 +96,28 @@ class RAGEngine:
                         docs.extend(PyPDFLoader(filepath).load())
                     elif ext == ".docx":
                         docs.extend(Docx2txtLoader(filepath).load())
+                    elif ext == ".one":
+                        docs.extend(OneNoteLoader(filepath).load())
                 except Exception as e:
                     print(f"Warning: Failed to read {filepath}: {e}")
+
+        # Load OneNote files from runbook path
+        if os.path.exists(self.onenote_runbook_path):
+            try:
+                for filename in os.listdir(self.onenote_runbook_path):
+                    filepath = os.path.join(self.onenote_runbook_path, filename)
+                    if not os.path.isfile(filepath):
+                        continue
+                    
+                    ext = os.path.splitext(filepath)[1].lower()
+                    if ext == ".one":
+                        try:
+                            docs.extend(OneNoteLoader(filepath).load())
+                            print(f"Loaded OneNote file: {filename}")
+                        except Exception as e:
+                            print(f"Warning: Failed to read OneNote file {filepath}: {e}")
+            except Exception as e:
+                print(f"Warning: Failed to access OneNote runbook path {self.onenote_runbook_path}: {e}")
 
         # Load additional documents
         if additional_paths:
@@ -108,6 +132,8 @@ class RAGEngine:
                         docs.extend(PyPDFLoader(path).load())
                     elif ext == ".docx":
                         docs.extend(Docx2txtLoader(path).load())
+                    elif ext == ".one":
+                        docs.extend(OneNoteLoader(path).load())
                 except Exception as e:
                     print(f"Warning: Failed to read {path}: {e}")
 
