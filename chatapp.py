@@ -28,12 +28,16 @@ from langchain_huggingface import HuggingFacePipeline
 # ---------------------------
 # Configuration (edit paths)
 # ---------------------------
+# Get the script directory and construct relative paths to documents folder
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DOCUMENTS_DIR = os.path.join(SCRIPT_DIR, "documents")
+
 PDF_PATHS = [
-    r"C:\Users\bartonrd\OneDrive - Southern California Edison\Desktop\ADMS LLM AI Chatbot\documents\distribution_model_manager_user_guide.pdf",
-    r"C:\Users\bartonrd\OneDrive - Southern California Edison\Desktop\ADMS LLM AI Chatbot\documents\adms-16-20-0-modeling-overview-and-converter-user-guide.pdf",
+    os.path.join(DOCUMENTS_DIR, "distribution_model_manager_user_guide.pdf"),
+    os.path.join(DOCUMENTS_DIR, "adms-16-20-0-modeling-overview-and-converter-user-guide.pdf"),
 ]
 DOCX_PATHS = [
-    # r"C:\path\to\your\docx1.docx",
+    # Add DOCX files from documents folder if needed
 ]
 
 # Local, offline models
