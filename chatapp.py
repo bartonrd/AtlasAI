@@ -183,6 +183,16 @@ def get_current_chat():
 # ---------------------------
 st.set_page_config(page_title="AtlasAI Chat", layout="wide")
 
+# Add custom CSS for thinking indicator
+st.markdown("""
+<style>
+.thinking-text {
+    color: #888888;
+    font-style: italic;
+}
+</style>
+""", unsafe_allow_html=True)
+
 with st.sidebar:
     st.title("AtlasAI")
     
@@ -302,92 +312,102 @@ if prompt_text:
     with st.chat_message("user"):
         st.markdown(prompt_text)
 
-    # ---------------------------
-    # 1) Load documents (PDF + DOCX)
-    # ---------------------------
-    docs = []
-    missing = []
+    # Display thinking indicator with assistant icon - keep context open for entire processing
+    with st.chat_message("assistant"):
+        thinking_placeholder = st.empty()
+        sources_placeholder = st.empty()
+        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Thinking...</span>', unsafe_allow_html=True)
 
-    for p in PDF_PATHS:
-        if not os.path.exists(p):
-            missing.append(p)
-        else:
-            try:
-                docs.extend(PyPDFLoader(p).load())
-            except Exception as e:
-                st.warning(f"Failed to read PDF {p}: {e}")
+        # ---------------------------
+        # 1) Load documents (PDF + DOCX)
+        # ---------------------------
+        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Loading documents...</span>', unsafe_allow_html=True)
+        docs = []
+        missing = []
 
-    for p in DOCX_PATHS:
-        if not os.path.exists(p):
-            missing.append(p)
-        else:
-            try:
-                docs.extend(Docx2txtLoader(p).load())
-            except Exception as e:
-                st.warning(f"Failed to read DOCX {p}: {e}")
+        for p in PDF_PATHS:
+            if not os.path.exists(p):
+                missing.append(p)
+            else:
+                try:
+                    docs.extend(PyPDFLoader(p).load())
+                except Exception as e:
+                    st.warning(f"Failed to read PDF {p}: {e}")
 
-    if missing:
-        st.error("The following files were not found:\n- " + "\n- ".join(missing))
-        st.stop()
-    if not docs:
-        st.error("No documents loaded. Please add PDF/DOCX paths or upload files.")
-        st.stop()
+        for p in DOCX_PATHS:
+            if not os.path.exists(p):
+                missing.append(p)
+            else:
+                try:
+                    docs.extend(Docx2txtLoader(p).load())
+                except Exception as e:
+                    st.warning(f"Failed to read DOCX {p}: {e}")
 
-    # ---------------------------
-    # 2) Split documents
-    # ---------------------------
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=CHUNK_SIZE,
-        chunk_overlap=CHUNK_OVERLAP,
-        add_start_index=True,
-    )
-    splits = splitter.split_documents(docs)
-    if not splits:
-        st.error("No text chunks produced. If files are scanned images, run OCR first.")
-        st.stop()
+        if missing:
+            st.error("The following files were not found:\n- " + "\n- ".join(missing))
+            st.stop()
+        if not docs:
+            st.error("No documents loaded. Please add PDF/DOCX paths or upload files.")
+            st.stop()
 
-    # ---------------------------
-    # 3) Embeddings + FAISS
-    # ---------------------------
-    try:
-        embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
-        _ = embeddings.embed_query("probe")  # quick check
-    except Exception as e:
-        st.error(f"Embedding model failed: {e}")
-        st.stop()
-
-    try:
-        vectorstore = FAISS.from_documents(splits, embeddings)
-    except IndexError:
-        st.error("Embedding list was empty—ensure files have extractable text.")
-        st.stop()
-    retriever = vectorstore.as_retriever(search_kwargs={"k": TOP_K})
-
-    # ---------------------------
-    # 4) Local Hugging Face pipeline LLM (deterministic for clean bullets)
-    # ---------------------------
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(LOCAL_TEXT_GEN_MODEL)
-        model = AutoModelForSeq2SeqLM.from_pretrained(LOCAL_TEXT_GEN_MODEL)
-        gen_pipe = pipeline(
-            "text2text-generation",
-            model=model,
-            tokenizer=tokenizer,
-            max_new_tokens=384,  # maximum tokens for generated output
-            do_sample=False,     # deterministic; avoids temperature warnings for T5
-            truncation=True,     # truncate inputs that exceed model's max input length
-            # For variety:
-            # do_sample=True, temperature=0.2, top_p=0.9, top_k=50
+        # ---------------------------
+        # 2) Split documents
+        # ---------------------------
+        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Processing documents...</span>', unsafe_allow_html=True)
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=CHUNK_SIZE,
+            chunk_overlap=CHUNK_OVERLAP,
+            add_start_index=True,
         )
-        llm = HuggingFacePipeline(pipeline=gen_pipe)
-    except Exception as e:
-        st.error(f"Failed to load local HF model from '{LOCAL_TEXT_GEN_MODEL}': {e}")
-        st.stop()
+        splits = splitter.split_documents(docs)
+        if not splits:
+            st.error("No text chunks produced. If files are scanned images, run OCR first.")
+            st.stop()
 
-    # ---------------------------
-    # 5) Retrieval-aware prompt (forces bullet points & newlines)
-    # ---------------------------
-    template = """You are a concise, helpful assistant for a RAG system.
+        # ---------------------------
+        # 3) Embeddings + FAISS
+        # ---------------------------
+        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Creating embeddings...</span>', unsafe_allow_html=True)
+        try:
+            embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
+            _ = embeddings.embed_query("probe")  # quick check
+        except Exception as e:
+            st.error(f"Embedding model failed: {e}")
+            st.stop()
+
+        try:
+            vectorstore = FAISS.from_documents(splits, embeddings)
+        except IndexError:
+            st.error("Embedding list was empty—ensure files have extractable text.")
+            st.stop()
+        retriever = vectorstore.as_retriever(search_kwargs={"k": TOP_K})
+
+        # ---------------------------
+        # 4) Local Hugging Face pipeline LLM (deterministic for clean bullets)
+        # ---------------------------
+        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Loading language model...</span>', unsafe_allow_html=True)
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(LOCAL_TEXT_GEN_MODEL)
+            model = AutoModelForSeq2SeqLM.from_pretrained(LOCAL_TEXT_GEN_MODEL)
+            gen_pipe = pipeline(
+                "text2text-generation",
+                model=model,
+                tokenizer=tokenizer,
+                max_new_tokens=384,  # maximum tokens for generated output
+                do_sample=False,     # deterministic; avoids temperature warnings for T5
+                truncation=True,     # truncate inputs that exceed model's max input length
+                # For variety:
+                # do_sample=True, temperature=0.2, top_p=0.9, top_k=50
+            )
+            llm = HuggingFacePipeline(pipeline=gen_pipe)
+        except Exception as e:
+            st.error(f"Failed to load local HF model from '{LOCAL_TEXT_GEN_MODEL}': {e}")
+            st.stop()
+
+        # ---------------------------
+        # 5) Retrieval-aware prompt (forces bullet points & newlines)
+        # ---------------------------
+        template = """You are a concise, helpful assistant for a RAG system.
 
 Rules:
 - If the question is unrelated to the context, reply briefly to the user without using the context.
@@ -404,51 +424,52 @@ Context:
 
 Answer (markdown bullets only):
 """
-    qa_prompt = PromptTemplate(
-        input_variables=["question", "context"],
-        template=template,
-    )
+        qa_prompt = PromptTemplate(
+            input_variables=["question", "context"],
+            template=template,
+        )
 
-    # ---------------------------
-    # 6) RetrievalQA (classic chain API)
-    # ---------------------------
-    qa = RetrievalQA.from_chain_type(
-        llm=llm,
-        chain_type="stuff",       # for larger corpora consider "map_reduce"
-        retriever=retriever,
-        chain_type_kwargs={"prompt": qa_prompt},
-        return_source_documents=True,
-    )
+        # ---------------------------
+        # 6) RetrievalQA (classic chain API)
+        # ---------------------------
+        qa = RetrievalQA.from_chain_type(
+            llm=llm,
+            chain_type="stuff",       # for larger corpora consider "map_reduce"
+            retriever=retriever,
+            chain_type_kwargs={"prompt": qa_prompt},
+            return_source_documents=True,
+        )
 
-    # ---------------------------
-    # 7) Run the chain (use invoke to avoid deprecation warning)
-    # ---------------------------
-    result = qa.invoke({"query": prompt_text})
-    answer = result.get("result", "")
-    sources = result.get("source_documents", [])
+        # ---------------------------
+        # 7) Run the chain (use invoke to avoid deprecation warning)
+        # ---------------------------
+        thinking_placeholder.markdown('<span style="color: #888888; font-style: italic;">Generating answer...</span>', unsafe_allow_html=True)
+        result = qa.invoke({"query": prompt_text})
+        answer = result.get("result", "")
+        sources = result.get("source_documents", [])
 
-    # ---------------------------
-    # 8) Display (enforce bullets)
-    # ---------------------------
-    formatted_answer = to_bullets(answer)
-    
-    # Prepare source list
-    source_list = []
-    if sources:
-        for i, doc in enumerate(sources, start=1):
-            meta = doc.metadata or {}
-            page = meta.get("page", "unknown")
-            source = meta.get("source", "unknown")
-            source_list.append(f"{i}. {source} (page {page})")
-    
-    # Display assistant message
-    with st.chat_message("assistant"):
-        st.markdown(formatted_answer)
+        # ---------------------------
+        # 8) Display (enforce bullets)
+        # ---------------------------
+        formatted_answer = to_bullets(answer)
+        
+        # Prepare source list
+        source_list = []
+        if sources:
+            for i, doc in enumerate(sources, start=1):
+                meta = doc.metadata or {}
+                page = meta.get("page", "unknown")
+                source = meta.get("source", "unknown")
+                source_list.append(f"{i}. {source} (page {page})")
+        
+        # Clear thinking indicator and display final answer
+        thinking_placeholder.markdown(formatted_answer)
         
         if source_list:
-            with st.expander("Sources"):
-                for source_info in source_list:
-                    st.write(source_info)
+            with sources_placeholder.container():
+                with st.expander("Sources"):
+                    for source_info in source_list:
+                        st.write(source_info)
     
     # Add assistant message to chat history
     current_chat["messages"].append({
