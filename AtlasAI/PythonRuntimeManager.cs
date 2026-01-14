@@ -144,21 +144,21 @@ namespace AtlasAI
                 return false;
             }
 
-            // Check for actual error indicators
-            string lowerMessage = message.ToLowerInvariant();
+            // Check for actual error indicators using case-insensitive comparison
+            var comparison = StringComparison.OrdinalIgnoreCase;
             
             // Explicit error keywords
-            if (lowerMessage.Contains("error") || 
-                lowerMessage.Contains("exception") || 
-                lowerMessage.Contains("traceback") ||
-                lowerMessage.Contains("failed") ||
-                lowerMessage.Contains("fatal"))
+            if (message.Contains("error", comparison) || 
+                message.Contains("exception", comparison) || 
+                message.Contains("traceback", comparison) ||
+                message.Contains("failed", comparison) ||
+                message.Contains("fatal", comparison))
             {
                 // But exclude INFO/DEBUG level messages that happen to contain "error" in them
-                if (lowerMessage.Contains("info:") || 
-                    lowerMessage.Contains("debug:") ||
-                    lowerMessage.Contains("- info -") ||
-                    lowerMessage.Contains("- debug -"))
+                if (message.Contains("info:", comparison) || 
+                    message.Contains("debug:", comparison) ||
+                    message.Contains("- info -", comparison) ||
+                    message.Contains("- debug -", comparison))
                 {
                     return false;
                 }
@@ -166,7 +166,7 @@ namespace AtlasAI
             }
 
             // Check for WARNING level (these should be marked but not as errors)
-            if (lowerMessage.Contains("warning") || lowerMessage.Contains("- warning -"))
+            if (message.Contains("warning", comparison) || message.Contains("- warning -", comparison))
             {
                 return false; // Warnings are not errors
             }
