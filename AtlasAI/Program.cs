@@ -50,10 +50,11 @@ namespace AtlasAI
                 Console.WriteLine();
 
                 // Configure the process to run streamlit
+                // Use "python -m streamlit" to avoid PATH issues with streamlit executable
                 ProcessStartInfo startInfo = new ProcessStartInfo
                 {
-                    FileName = "streamlit",
-                    Arguments = $"run \"{pythonScriptPath}\"",
+                    FileName = "python",
+                    Arguments = $"-m streamlit run \"{pythonScriptPath}\"",
                     WorkingDirectory = solutionRoot,
                     UseShellExecute = false,
                     RedirectStandardOutput = true,
