@@ -1,6 +1,7 @@
 
 import os
 import re
+import html
 import streamlit as st
 from datetime import datetime
 import uuid
@@ -135,7 +136,9 @@ def thinking_message(text: str) -> str:
     Returns:
         Formatted HTML string with consistent styling
     """
-    return f'<span style="color: #888888; font-style: italic;">{text}</span>'
+    # Escape HTML to prevent XSS vulnerabilities
+    escaped_text = html.escape(text)
+    return f'<span style="color: #888888; font-style: italic;">{escaped_text}</span>'
 
 # ---------------------------
 # Session State Initialization
@@ -345,9 +348,11 @@ if prompt_text:
                     st.warning(f"Failed to read DOCX {p}: {e}")
 
         if missing:
+            thinking_placeholder.empty()
             st.error("The following files were not found:\n- " + "\n- ".join(missing))
             st.stop()
         if not docs:
+            thinking_placeholder.empty()
             st.error("No documents loaded. Please add PDF/DOCX paths or upload files.")
             st.stop()
 
@@ -362,6 +367,7 @@ if prompt_text:
         )
         splits = splitter.split_documents(docs)
         if not splits:
+            thinking_placeholder.empty()
             st.error("No text chunks produced. If files are scanned images, run OCR first.")
             st.stop()
 
@@ -373,12 +379,14 @@ if prompt_text:
             embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
             _ = embeddings.embed_query("probe")  # quick check
         except Exception as e:
+            thinking_placeholder.empty()
             st.error(f"Embedding model failed: {e}")
             st.stop()
 
         try:
             vectorstore = FAISS.from_documents(splits, embeddings)
         except IndexError:
+            thinking_placeholder.empty()
             st.error("Embedding list was empty—ensure files have extractable text.")
             st.stop()
         retriever = vectorstore.as_retriever(search_kwargs={"k": TOP_K})
@@ -402,6 +410,7 @@ if prompt_text:
             )
             llm = HuggingFacePipeline(pipeline=gen_pipe)
         except Exception as e:
+            thinking_placeholder.empty()
             st.error(f"Failed to load local HF model from '{LOCAL_TEXT_GEN_MODEL}': {e}")
             st.stop()
 
