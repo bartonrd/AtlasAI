@@ -8,7 +8,7 @@ import os
 import re
 import hashlib
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import streamlit as st
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -68,7 +68,7 @@ class DocumentProcessor:
         self, 
         pdf_paths: List[Path], 
         docx_paths: Optional[List[Path]] = None
-    ) -> tuple[List[Document], List[str]]:
+    ) -> Tuple[List[Document], List[str]]:
         """
         Load documents from file paths.
         

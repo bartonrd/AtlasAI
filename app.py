@@ -499,5 +499,7 @@ if prompt_text:
         except Exception as e:
             thinking_placeholder.empty()
             st.error(f"An error occurred: {str(e)}")
+            # Log full traceback for debugging (not displayed to user)
             import traceback
-            st.error(traceback.format_exc())
+            import logging
+            logging.error("RAG query failed", exc_info=True)

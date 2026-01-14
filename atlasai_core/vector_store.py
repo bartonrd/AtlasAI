@@ -2,6 +2,9 @@
 Vector store management with caching support for AtlasAI.
 
 Handles embeddings and FAISS vector store with persistent caching.
+
+Note: Uses pickle for caching. Cache directory should be protected
+and only accessible by the application to prevent tampering.
 """
 
 import pickle
@@ -50,6 +53,9 @@ class VectorStoreManager:
         """
         Load vector store from cache.
         
+        Note: Uses pickle for deserialization. The cache directory should be
+        protected to prevent tampering. Only load from trusted cache files.
+        
         Args:
             doc_hash: Hash of documents for cache key
             
@@ -63,6 +69,7 @@ class VectorStoreManager:
         
         if cache_path.exists():
             try:
+                # Security note: Only load from cache in protected directory
                 with open(cache_path, 'rb') as f:
                     self.vectorstore = pickle.load(f)
                 return self.vectorstore

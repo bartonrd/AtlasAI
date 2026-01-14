@@ -4,8 +4,9 @@ RAG chain implementation for AtlasAI.
 Provides retrieval-augmented generation with customizable prompts.
 """
 
-from typing import Optional
+from typing import Optional, List
 from langchain_classic.chains import RetrievalQA
+from langchain_core.documents import Document
 from langchain_core.prompts import PromptTemplate
 from langchain_core.vectorstores import VectorStoreRetriever
 from langchain_huggingface import HuggingFacePipeline
@@ -90,7 +91,7 @@ Answer (markdown bullets only):
         return self.chain.invoke({"query": question})
     
     @staticmethod
-    def format_sources(source_documents: list) -> list[str]:
+    def format_sources(source_documents: List[Document]) -> List[str]:
         """
         Format source documents for display.
         

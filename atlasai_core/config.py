@@ -6,7 +6,7 @@ Supports environment variables and provides sensible defaults.
 
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 
 class Config:
@@ -59,7 +59,7 @@ class Config:
         self.use_persistent_cache = os.getenv("ATLAS_USE_CACHE", "true").lower() == "true"
         self.vector_store_path = self.cache_dir / "vector_store"
         
-    def validate(self) -> list[str]:
+    def validate(self) -> List[str]:
         """
         Validate configuration and return list of warnings/errors.
         

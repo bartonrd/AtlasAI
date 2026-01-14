@@ -38,6 +38,11 @@ def strip_boilerplate(text: str) -> str:
     return cleaned
 
 
+# Bullet point regex pattern - matches various bullet characters
+# • (U+2022), ▪ (U+25AA), ● (U+25CF), · (U+00B7), and ASCII -, –, *
+BULLET_PATTERN = r"^[•\-–\*\u2022\u25AA\u25CF\u00B7]+\s*"
+
+
 def to_bullets(text: str, min_items: int = 3, max_items: int = 10) -> str:
     """
     Convert free-form LLM answer into Markdown bullets.
@@ -75,7 +80,7 @@ def to_bullets(text: str, min_items: int = 3, max_items: int = 10) -> str:
     # Final cleanup: strip any leading bullets or numbering
     cleaned = []
     for p in parts:
-        p = re.sub(r"^[•\-–\*\u2022\u25AA\u25CF\u00B7]+\s*", "", p)  # bullets
+        p = re.sub(BULLET_PATTERN, "", p)  # Remove bullet characters
         p = re.sub(r"^(?:\d+|[A-Za-z])[\.\)\:]\s*", "", p)  # numbering
         p = p.strip()
         if p:
@@ -85,13 +90,13 @@ def to_bullets(text: str, min_items: int = 3, max_items: int = 10) -> str:
     if len(cleaned) < min_items:
         if "•" in text:
             cleaned = [
-                re.sub(r"^[•\-\*\s]+", "", p).strip() 
+                re.sub(BULLET_PATTERN, "", p).strip() 
                 for p in text.split("•") 
                 if p.strip()
             ]
         elif ";" in text:
             cleaned = [
-                re.sub(r"^[•\-\*\s]+", "", p).strip() 
+                re.sub(BULLET_PATTERN, "", p).strip() 
                 for p in text.split(";") 
                 if p.strip()
             ]
