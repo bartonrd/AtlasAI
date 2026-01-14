@@ -50,10 +50,8 @@ def ingest_onenote(
         enable_onenote: Feature flag to enable/disable OneNote ingestion
 
     Returns:
-        List of LangChain Document objects with page content and metadata
-
-    Raises:
-        RuntimeError: If OneNote COM API is unavailable
+        List of LangChain Document objects with page content and metadata.
+        Returns empty list if OneNote is disabled or unavailable.
     """
     if not enable_onenote:
         logger.info("OneNote ingestion disabled via feature flag")
@@ -205,7 +203,7 @@ def _process_one_file(
 
             try:
                 # Export page to HTML
-                html_path = temp_dir / f"{hashlib.md5(page_id.encode()).hexdigest()}.html"
+                html_path = temp_dir / f"{hashlib.sha256(page_id.encode()).hexdigest()}.html"
                 onenote.Publish(page_id, str(html_path), PF_HTML, "")
 
                 # Extract text from HTML
@@ -292,10 +290,14 @@ def _get_parent_section(page_element, root, ns) -> str:
         Section name or "Unknown"
     """
     try:
-        # Find parent Section element
-        for section in root.findall(".//one:Section", ns):
-            if page_element in section.iter():
-                return section.get("name", "Unknown")
+        # Use XPath to find parent section by checking if page ID is in section's descendants
+        page_id = page_element.get("ID")
+        if page_id:
+            for section in root.findall(".//one:Section", ns):
+                # Check if any page in this section has matching ID
+                for page in section.findall(".//one:Page[@ID]", ns):
+                    if page.get("ID") == page_id:
+                        return section.get("name", "Unknown")
     except Exception:
         pass
     return "Unknown"
@@ -314,10 +316,14 @@ def _get_parent_notebook(page_element, root, ns) -> str:
         Notebook name or "Unknown"
     """
     try:
-        # Find parent Notebook element
-        for notebook in root.findall(".//one:Notebook", ns):
-            if page_element in notebook.iter():
-                return notebook.get("name", "Unknown")
+        # Use XPath to find parent notebook by checking if page ID is in notebook's descendants
+        page_id = page_element.get("ID")
+        if page_id:
+            for notebook in root.findall(".//one:Notebook", ns):
+                # Check if any page in this notebook has matching ID
+                for page in notebook.findall(".//one:Page[@ID]", ns):
+                    if page.get("ID") == page_id:
+                        return notebook.get("name", "Unknown")
     except Exception:
         pass
     return "Unknown"
