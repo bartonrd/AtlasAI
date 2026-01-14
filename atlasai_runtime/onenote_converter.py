@@ -8,6 +8,10 @@ import shutil
 from typing import List
 from pathlib import Path
 
+# Configuration constants
+MAX_PROPERTIES = 50  # Maximum number of properties to include in PDF
+MAX_EMBEDDED_FILES = 20  # Maximum number of embedded files to list in PDF
+
 
 def convert_onenote_to_pdf(one_file_path: str, output_pdf_path: str) -> bool:
     """
@@ -27,6 +31,7 @@ def convert_onenote_to_pdf(one_file_path: str, output_pdf_path: str) -> bool:
         from reportlab.lib.units import inch
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
         from reportlab.lib.enums import TA_LEFT
+        # Note: The class is named 'OneDocment' (not 'OneDocument') in the pyOneNote library
         from pyOneNote.OneDocument import OneDocment
         
         # Parse the OneNote file
@@ -113,7 +118,7 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
             content_lines.append(f"Document Properties ({len(properties)} items):")
             content_lines.append("-" * 50)
             
-            for prop in properties[:50]:  # Limit to first 50 properties
+            for prop in properties[:MAX_PROPERTIES]:  # Limit properties to improve readability
                 if isinstance(prop, dict):
                     prop_type = prop.get('type', 'Unknown')
                     identity = prop.get('identity', '')
@@ -146,7 +151,7 @@ def _extract_content_from_onenote(one_file, file_path: str) -> List[str]:
             content_lines.append(f"Embedded Files ({len(files)} items):")
             content_lines.append("-" * 50)
             
-            for file_info in files[:20]:  # Limit to first 20 files
+            for file_info in files[:MAX_EMBEDDED_FILES]:  # Limit files to improve readability
                 if isinstance(file_info, dict):
                     file_name = file_info.get('file_name', 'Unknown')
                     file_size = file_info.get('file_size', 'Unknown')
@@ -183,15 +188,12 @@ def convert_onenote_directory(
     # If overwrite is True, clear the output directory
     if overwrite and os.path.exists(output_dir):
         print(f"Clearing output directory: {output_dir}")
-        for item in os.listdir(output_dir):
-            item_path = os.path.join(output_dir, item)
-            try:
-                if os.path.isfile(item_path):
-                    os.unlink(item_path)
-                elif os.path.isdir(item_path):
-                    shutil.rmtree(item_path)
-            except Exception as e:
-                print(f"Error removing {item_path}: {e}")
+        try:
+            shutil.rmtree(output_dir)
+            os.makedirs(output_dir, exist_ok=True)
+        except Exception as e:
+            print(f"Error clearing output directory: {e}")
+            return 0
     
     # Find all .one files
     one_files = []
