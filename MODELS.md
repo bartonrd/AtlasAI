@@ -169,6 +169,139 @@ The system uses two types of models:
    - Best model: Phi-3-Mini or Mistral-7B
    - Technical precision important
 
+## Downloading Models
+
+### Online Download (Recommended)
+
+Use the provided download utility script for easy model installation:
+
+```bash
+# List available presets
+python download_models.py --list-presets
+
+# Download recommended models for electric utility domain
+python download_models.py --preset utility
+
+# Download optimal models for best quality
+python download_models.py --preset optimal
+
+# Check if models already exist locally
+python download_models.py --preset utility --check
+```
+
+### Offline/Manual Download
+
+If you're in an environment without internet access or have connectivity issues to Hugging Face:
+
+#### Method 1: Download on Another Machine
+
+On a machine with internet access, use Python to download the models:
+
+**For Embedding Models:**
+```python
+from sentence_transformers import SentenceTransformer
+
+# Download and save
+model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
+model.save(r'C:\models\all-mpnet-base-v2')  # Windows
+# model.save('/home/user/models/all-mpnet-base-v2')  # Linux/Mac
+```
+
+**For Text Generation Models (e.g., Phi-3):**
+```python
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+model_name = 'microsoft/Phi-3-mini-4k-instruct'
+save_path = r'C:\models\phi-3-mini'  # Adjust for your system
+
+tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(model_name, trust_remote_code=True)
+
+tokenizer.save_pretrained(save_path)
+model.save_pretrained(save_path)
+```
+
+**For FLAN-T5 Models:**
+```python
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+
+model_name = 'google/flan-t5-base'
+save_path = r'C:\models\flan-t5-base'
+
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+
+tokenizer.save_pretrained(save_path)
+model.save_pretrained(save_path)
+```
+
+#### Method 2: Using Hugging Face CLI
+
+Install and use the Hugging Face CLI:
+
+```bash
+# Install the CLI
+pip install huggingface-hub
+
+# Download a model
+huggingface-cli download sentence-transformers/all-mpnet-base-v2 --local-dir C:\models\all-mpnet-base-v2
+huggingface-cli download microsoft/Phi-3-mini-4k-instruct --local-dir C:\models\phi-3-mini
+```
+
+#### Method 3: Manual Download from Hugging Face Website
+
+1. Visit the model page on Hugging Face (e.g., https://huggingface.co/microsoft/Phi-3-mini-4k-instruct)
+2. Click on "Files and versions" tab
+3. Download all files in the repository:
+   - `config.json` (required)
+   - `tokenizer.json` or `tokenizer_config.json` (required)
+   - Model weight files (`.bin`, `.safetensors`, or sharded files) (required)
+   - Any other configuration files
+4. Place all files in your target directory (e.g., `C:\models\phi-3-mini`)
+
+#### Transferring Models
+
+After downloading on another machine:
+
+1. **Copy the entire model directory** to your offline machine
+2. Place it in your models directory (e.g., `C:\models\` on Windows, `~/models/` on Linux/Mac)
+3. Set environment variables to point to the model location
+4. Verify the model with: `python download_models.py --preset <preset-name> --check`
+
+**Example Transfer:**
+```bash
+# On source machine (with internet)
+# Models downloaded to: C:\models\phi-3-mini and C:\models\all-mpnet-base-v2
+
+# Transfer via USB drive, network share, or other method to target machine
+# Target location: C:\models\ (same structure)
+
+# On target machine (offline)
+# Verify models exist
+python download_models.py --preset utility --check
+
+# If successful, configure AtlasAI
+set ATLASAI_TEXT_GEN_MODEL=C:\models\phi-3-mini
+set ATLASAI_EMBEDDING_MODEL=C:\models\all-mpnet-base-v2
+python -m atlasai_runtime
+```
+
+### Troubleshooting Download Issues
+
+**Connection Errors:**
+- The download utility checks connectivity to Hugging Face before attempting downloads
+- If offline, use the manual download methods described above
+- Check firewall/proxy settings if connection fails despite having internet
+
+**Partial Downloads:**
+- If a download is interrupted, delete the incomplete model directory and restart
+- Use `--check` flag to verify if a model is complete before using it
+
+**Model Not Found Errors:**
+- Ensure all required files are present (config.json, model weights, tokenizer files)
+- Check that file permissions are correct
+- Verify the model directory structure matches Hugging Face format
+
 ## Using Different Models
 
 ### Configuration via Environment Variables
