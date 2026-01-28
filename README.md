@@ -32,7 +32,7 @@ The application consists of two main components:
 
 ## Features
 
-- **Intent Inferring**: Automatically detects user intent (error resolution, how-to, chit-chat, concept explanation) and provides contextually appropriate responses
+- **Intent Inferring with Reliability Focus**: Automatically detects user intent with domain-specific SCADA/Grid terminology recognition, ensuring technical queries are never misclassified. Includes confidence threshold management for consistent, reliable responses critical for electrical grid operations.
 - **Local LLM Processing**: Uses offline Hugging Face models (FLAN-T5) for text generation
 - **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
 - **OneNote Conversion**: Automatically converts .one files to PDF on startup for better text extraction
@@ -372,15 +372,26 @@ copy_mapping = copy_onenote_files_locally(files, "local_copies/")
 
 ## Intent Inferring
 
-AtlasAI includes an intelligent intent detection system that automatically identifies the type of question you're asking and provides contextually appropriate responses. The detected intent and confidence score are displayed before each response. See [INTENT_INFERRING.md](INTENT_INFERRING.md) for detailed documentation.
+AtlasAI includes an intelligent intent detection system that automatically identifies the type of question you're asking and provides contextually appropriate responses. The detected intent and confidence score are displayed before each response. 
+
+**Enhanced for Reliability-Critical Operations**: The system includes domain-specific SCADA/Electrical Grid terminology recognition (30+ technical keywords) and confidence threshold management to ensure consistent, reliable responses essential for electrical grid operations. See [INTENT_INFERRING.md](INTENT_INFERRING.md) and [RELIABILITY_FIX.md](RELIABILITY_FIX.md) for detailed documentation.
 
 ### Example Output
 
 ```
-You: How do I install the software?
+You: point not mapped
 
-🎯 Detected Intent: How To (Confidence: 95.0%)
+🎯 Detected Intent: Concept Explanation (Confidence: 70.0%)
 ```
+
+### Reliability Features
+
+- **Domain-Specific Keywords**: Recognizes SCADA/Grid terminology (point, device, station, mapped, telemetry, etc.)
+- **Confidence Threshold**: Minimum 40% confidence required; falls back to comprehensive explanation if lower
+- **Consistent Classification**: Similar queries receive compatible responses regardless of error prefixes
+- **Technical Query Protection**: Short technical queries never misclassified as casual conversation
+
+**Example**: Both "point not mapped" and "fatal error: point not mapped" receive appropriate technical responses.
 
 ### Supported Intent Types:
 
