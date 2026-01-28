@@ -6,10 +6,18 @@ Classifies user queries into predefined intent categories to improve response qu
 
 import logging
 from typing import Dict, List, Tuple
-from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
-import torch
 
 logger = logging.getLogger(__name__)
+
+# Try to import transformers, but make it optional
+try:
+    from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
+    import torch
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    logger.warning("transformers library not available, will use keyword-based classification only")
+    TRANSFORMERS_AVAILABLE = False
+    torch = None
 
 
 class IntentClassifier:
@@ -87,6 +95,11 @@ class IntentClassifier:
     def _get_classifier(self):
         """Lazy load the classifier pipeline."""
         if self._classifier is None:
+            if not TRANSFORMERS_AVAILABLE:
+                logger.info("transformers not available, using keyword-based fallback")
+                self._classifier = "keyword_fallback"
+                return self._classifier
+                
             logger.info(f"Loading intent classifier model: {self.model_name}")
             try:
                 self._classifier = pipeline(
