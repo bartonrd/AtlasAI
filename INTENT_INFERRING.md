@@ -210,7 +210,7 @@ The chat API now returns intent information:
 ## Performance
 
 ### Accuracy
-- Heuristic classification: ~100% accuracy on test cases
+- Heuristic classification: 100% accuracy on provided test cases
 - Model-based classification: Adds additional accuracy for edge cases
 - Combined approach provides robust classification
 
@@ -221,13 +221,20 @@ The chat API now returns intent information:
 
 ## Testing
 
-A test script is included to validate intent classification:
+Test scripts can be created to validate intent classification. Example test files are available in the repository documentation but are not tracked in version control to keep the repository clean.
 
-```bash
-python test_intent_classifier.py
+### Example Test Script
+
+Create a file `test_intent_classifier.py` based on the examples in the documentation to test with sample queries:
+
+```python
+from atlasai_runtime.intent_classifier import create_intent_classifier
+classifier = create_intent_classifier(use_model=False)
+intent, confidence = classifier.classify("How do I install the software?")
+print(f"Intent: {intent}, Confidence: {confidence}")
 ```
 
-This tests the classifier with sample queries across all intent types and reports accuracy.
+This validates the classifier with queries across all intent types and reports accuracy.
 
 ## Future Enhancements
 

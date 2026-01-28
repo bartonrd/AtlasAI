@@ -32,6 +32,7 @@ The application consists of two main components:
 
 ## Features
 
+- **Intent Inferring**: Automatically detects user intent (error resolution, how-to, chit-chat, concept explanation) and provides contextually appropriate responses
 - **Local LLM Processing**: Uses offline Hugging Face models (FLAN-T5) for text generation
 - **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
 - **OneNote Conversion**: Automatically converts .one files to PDF on startup for better text extraction
@@ -368,6 +369,25 @@ copy_mapping = copy_onenote_files_locally(files, "local_copies/")
 - Default path: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`
 
 **Safety**: The non-destructive mode ensures your original OneNote files are never modified or damaged during conversion. All processing happens on local copies stored in the documents folder.
+
+## Intent Inferring
+
+AtlasAI includes an intelligent intent detection system that automatically identifies the type of question you're asking and provides contextually appropriate responses. See [INTENT_INFERRING.md](INTENT_INFERRING.md) for detailed documentation.
+
+### Supported Intent Types:
+
+1. **Error Log Resolution** - Troubleshooting and fixing errors
+2. **How-To** - Step-by-step instructions for tasks
+3. **Chit-Chat** - Casual conversation and greetings
+4. **Concept Explanation** - Understanding concepts and definitions
+
+The system uses a combination of keyword matching and optional zero-shot classification to determine intent, then applies specialized prompt templates to generate more relevant and helpful responses.
+
+**Benefits:**
+- Better responses for short or ambiguous queries
+- Faster responses for casual conversation
+- Specialized formatting for different question types
+- Intent metadata in API responses for analytics
 
 ## Troubleshooting
 

@@ -135,6 +135,12 @@ namespace AtlasAI
 
         [JsonPropertyName("sources")]
         public List<Source> Sources { get; set; } = new();
+
+        [JsonPropertyName("intent")]
+        public string Intent { get; set; } = "unknown";
+
+        [JsonPropertyName("intent_confidence")]
+        public double IntentConfidence { get; set; } = 0.0;
     }
 
     public class Source

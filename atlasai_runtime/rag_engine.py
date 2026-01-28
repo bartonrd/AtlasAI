@@ -43,6 +43,7 @@ from langchain_huggingface import HuggingFacePipeline
 
 # Configuration constants
 MAX_FILES_TO_DISPLAY = 5  # Maximum number of files to show in logging output
+CHIT_CHAT_BYPASS_CONFIDENCE_THRESHOLD = 0.7  # Confidence threshold for bypassing RAG on chit-chat
 
 
 class RAGEngine:
@@ -471,7 +472,7 @@ Answer (markdown bullets only):
                 intent = None
         
         # For chit-chat with high confidence, we can provide a quick response without heavy RAG
-        if intent == INTENT_CHIT_CHAT and intent_confidence > 0.7:
+        if intent == INTENT_CHIT_CHAT and intent_confidence > CHIT_CHAT_BYPASS_CONFIDENCE_THRESHOLD:
             # Handle simple chit-chat without full RAG processing
             formatted_answer = self._handle_chit_chat(question)
             return {
@@ -540,16 +541,16 @@ Answer (markdown bullets only):
         """
         message_lower = message.lower().strip()
         
-        # Greetings
-        if any(word in message_lower for word in ["hello", "hi", "hey", "greetings"]):
+        # Greetings - use word boundaries to avoid false matches
+        if re.search(r'\b(hello|hi|hey|greetings?)\b', message_lower):
             return "Hello! I'm AtlasAI, your technical documentation assistant. How can I help you today?"
         
-        # Thanks
-        if any(word in message_lower for word in ["thanks", "thank you"]):
+        # Thanks - use word boundaries
+        if re.search(r'\b(thanks?|thank\s+you)\b', message_lower):
             return "You're welcome! Feel free to ask if you have any other questions."
         
-        # Goodbye
-        if any(word in message_lower for word in ["bye", "goodbye"]):
+        # Goodbye - use word boundaries
+        if re.search(r'\b(bye|goodbye)\b', message_lower):
             return "Goodbye! Have a great day!"
         
         # How are you
@@ -557,7 +558,7 @@ Answer (markdown bullets only):
             return "I'm functioning well, thank you! I'm here to help you with technical documentation and questions."
         
         # What's up
-        if "what's up" in message_lower or "whats up" in message_lower:
+        if re.search(r"\bwhat'?s\s+up\b", message_lower):
             return "I'm here and ready to help! Do you have any questions about your documentation?"
         
         # Default friendly response

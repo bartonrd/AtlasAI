@@ -441,4 +441,7 @@ documents/onenote_copies/
 onenote_copies/
 
 # Test files
+# Note: Test files are kept locally for development and not committed to avoid clutter
+# Users can create their own test files following the examples in documentation
 test_*.py
+!tests/

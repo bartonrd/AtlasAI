@@ -24,6 +24,15 @@ INTENT_HOW_TO = "how_to"
 INTENT_CHIT_CHAT = "chit_chat"
 INTENT_CONCEPT_EXPLANATION = "concept_explanation"
 
+# Configuration constants for classification
+MODEL_CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to use model prediction
+MAX_HEURISTIC_CONFIDENCE = 0.95   # Maximum confidence for heuristic matches
+BASE_HEURISTIC_CONFIDENCE = 0.7   # Base confidence when keywords match
+CONFIDENCE_INCREMENT = 0.1        # Increment per additional keyword match
+SHORT_MESSAGE_CONFIDENCE = 0.6    # Confidence for very short messages (likely chit-chat)
+QUESTION_CONFIDENCE = 0.7         # Confidence for question patterns (likely concept explanation)
+DEFAULT_CONFIDENCE = 0.5          # Default confidence when no strong pattern matches
+
 # Keyword patterns for each intent type
 ERROR_KEYWORDS = [
     r"\berror\b", r"\bfail(ed|ure|ing)?\b", r"\bissue\b", r"\bproblem\b",
@@ -102,7 +111,7 @@ class IntentClassifier:
             try:
                 intent, confidence = self._classify_with_model(text)
                 # If model is highly confident, use it
-                if confidence > 0.5:
+                if confidence > MODEL_CONFIDENCE_THRESHOLD:
                     return intent, confidence
                 # Otherwise, fall through to heuristics for better accuracy
             except Exception as e:
@@ -179,18 +188,18 @@ class IntentClassifier:
             # Very short messages are likely chit-chat
             if len(text.split()) <= 3:
                 intent = INTENT_CHIT_CHAT
-                confidence = 0.6
+                confidence = SHORT_MESSAGE_CONFIDENCE
             # Questions are likely concept explanations
             elif "?" in text or text.startswith(("what", "why", "when", "where", "who")):
                 intent = INTENT_CONCEPT_EXPLANATION
-                confidence = 0.7
+                confidence = QUESTION_CONFIDENCE
             else:
                 intent = INTENT_CONCEPT_EXPLANATION
-                confidence = 0.5
+                confidence = DEFAULT_CONFIDENCE
         else:
             # Calculate confidence based on score magnitude
             # More matches = higher confidence
-            confidence = min(0.95, 0.7 + (score * 0.1))
+            confidence = min(MAX_HEURISTIC_CONFIDENCE, BASE_HEURISTIC_CONFIDENCE + (score * CONFIDENCE_INCREMENT))
         
         logger.info(f"Heuristic classified as '{intent}' with confidence {confidence:.2f}")
         return intent, confidence
