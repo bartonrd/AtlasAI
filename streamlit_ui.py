@@ -228,6 +228,12 @@ st.title(f"💬 {current_chat['name']}")
 # Display chat history
 for message in current_chat["messages"]:
     with st.chat_message(message["role"]):
+        # Display intent information for assistant messages
+        if message["role"] == "assistant" and "intent" in message and message.get("intent"):
+            intent_display = message["intent"].replace("_", " ").title()
+            confidence_pct = message.get("intent_confidence", 0) * 100
+            st.caption(f"🎯 **Intent:** {intent_display} | **Confidence:** {confidence_pct:.1f}%")
+        
         st.markdown(message["content"])
         if "sources" in message and message["sources"]:
             with st.expander("Sources"):
@@ -260,6 +266,14 @@ if prompt_text:
             if response_data:
                 answer = response_data.get("answer", "")
                 sources = response_data.get("sources", [])
+                intent = response_data.get("intent")
+                intent_confidence = response_data.get("intent_confidence")
+                
+                # Display intent information if available
+                if intent and intent_confidence is not None:
+                    intent_display = intent.replace("_", " ").title()
+                    confidence_pct = intent_confidence * 100
+                    st.caption(f"🎯 **Intent:** {intent_display} | **Confidence:** {confidence_pct:.1f}%")
                 
                 st.markdown(answer)
                 
@@ -272,7 +286,9 @@ if prompt_text:
                 current_chat["messages"].append({
                     "role": "assistant",
                     "content": answer,
-                    "sources": sources
+                    "sources": sources,
+                    "intent": intent,
+                    "intent_confidence": intent_confidence
                 })
             else:
                 error_msg = "Failed to get response from runtime. Please check the runtime status."

@@ -91,6 +91,21 @@ namespace AtlasAI
                         var response = await client.SendChatAsync(input, cts.Token);
 
                         Console.WriteLine();
+                        
+                        // Display intent information if available
+                        if (!string.IsNullOrEmpty(response.Intent) && response.IntentConfidence.HasValue)
+                        {
+                            string intentDisplay = response.Intent.Replace("_", " ");
+                            // Capitalize each word
+                            intentDisplay = System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(intentDisplay);
+                            double confidencePct = response.IntentConfidence.Value * 100;
+                            
+                            Console.ForegroundColor = ConsoleColor.Cyan;
+                            Console.WriteLine($"🎯 Intent: {intentDisplay} | Confidence: {confidencePct:F1}%");
+                            Console.ResetColor();
+                            Console.WriteLine();
+                        }
+                        
                         Console.WriteLine("Assistant:");
                         Console.WriteLine(response.Answer);
 
