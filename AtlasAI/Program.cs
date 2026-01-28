@@ -29,6 +29,23 @@ namespace AtlasAI
             {
                 // Start Python runtime
                 using var runtimeManager = new PythonRuntimeManager(config);
+                
+                // Check and install dependencies
+                Console.WriteLine("Checking and installing dependencies...");
+                bool depsOk = runtimeManager.CheckAndInstallDependencies();
+                
+                if (!depsOk)
+                {
+                    Console.WriteLine("WARNING: Some dependencies are missing or failed to install.");
+                    Console.WriteLine("Do you want to continue anyway? (y/n)");
+                    string? response = Console.ReadLine();
+                    if (!string.Equals(response?.Trim(), "y", StringComparison.OrdinalIgnoreCase))
+                    {
+                        Console.WriteLine("Exiting...");
+                        return 1;
+                    }
+                }
+                
                 runtimeManager.Start();
 
                 // Wait for runtime to be ready

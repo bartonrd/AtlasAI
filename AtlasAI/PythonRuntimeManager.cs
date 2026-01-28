@@ -20,6 +20,87 @@ namespace AtlasAI
         }
 
         /// <summary>
+        /// Checks and installs dependencies before starting the runtime.
+        /// </summary>
+        public bool CheckAndInstallDependencies()
+        {
+            Console.WriteLine("Checking dependencies...");
+            Console.WriteLine();
+
+            string solutionRoot = _config.SolutionRoot;
+            string installerScript = Path.Combine(solutionRoot, "install_dependencies.py");
+
+            if (!File.Exists(installerScript))
+            {
+                Console.WriteLine($"Warning: Dependency installer not found at: {installerScript}");
+                Console.WriteLine("Skipping dependency check...");
+                Console.WriteLine();
+                return true; // Don't fail, just warn
+            }
+
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = _config.PythonExecutable,
+                Arguments = $"\"{installerScript}\"",
+                WorkingDirectory = solutionRoot,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = false
+            };
+
+            try
+            {
+                using var process = Process.Start(startInfo);
+                if (process == null)
+                {
+                    Console.WriteLine("Warning: Failed to start dependency installer");
+                    return false;
+                }
+
+                // Read output in real-time
+                process.OutputDataReceived += (sender, e) =>
+                {
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        Console.WriteLine(e.Data);
+                    }
+                };
+
+                process.ErrorDataReceived += (sender, e) =>
+                {
+                    if (!string.IsNullOrEmpty(e.Data))
+                    {
+                        Console.WriteLine(e.Data);
+                    }
+                };
+
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                process.WaitForExit();
+
+                Console.WriteLine();
+                
+                if (process.ExitCode != 0)
+                {
+                    Console.WriteLine("Warning: Dependency check completed with warnings");
+                    Console.WriteLine("Some dependencies may be missing. The application may not work correctly.");
+                    Console.WriteLine();
+                    return false;
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Failed to run dependency installer: {ex.Message}");
+                Console.WriteLine();
+                return false;
+            }
+        }
+
+        /// <summary>
         /// Starts the Python runtime process.
         /// </summary>
         public void Start()
