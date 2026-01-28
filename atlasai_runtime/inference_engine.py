@@ -224,12 +224,12 @@ class InferenceEngine:
             )
         
         except Exception as e:
-            # Error handling - return error state
+            # Error handling - return error state with generic user message
             telemetry["error"] = str(e)
             telemetry["elapsed_ms"] = int((time.time() - start_time) * 1000)
             
             return InferenceResult(
-                answer=f"I encountered an error processing your query: {str(e)}",
+                answer="I encountered an error processing your query. Please try rephrasing your question.",
                 intent="error",
                 confidence=0.0,
                 citations=[],

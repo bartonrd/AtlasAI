@@ -211,15 +211,15 @@ class QueryRewriter:
         Extract technical entities from query.
         
         Looks for:
-        - CamelCase terms (e.g., ModelManager)
+        - CamelCase terms (e.g., ModelManager) - requires at least 2 capital letters
         - ALL_CAPS terms (e.g., ADMS)
         - Quoted terms
         - Technical abbreviations
         """
         entities = []
         
-        # CamelCase terms
-        camel_case = re.findall(r'\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b', query)
+        # CamelCase terms - requires at least two capitalized segments
+        camel_case = re.findall(r'\b[A-Z][a-z]+[A-Z][a-z]+(?:[A-Z][a-z]+)*\b', query)
         entities.extend(camel_case)
         
         # ALL_CAPS terms (at least 2 chars)
@@ -277,18 +277,24 @@ class QueryRewriter:
         return error_codes
     
     def _extract_versions(self, query: str) -> List[str]:
-        """Extract version numbers from query."""
+        """Extract version numbers from query with context."""
         versions = []
         
-        # Version patterns: v1.2.3, 1.2.3, version 1.2
+        # Version patterns with more context to avoid false positives
         version_patterns = [
-            r'\bv?(\d+\.\d+(?:\.\d+)?)\b',
-            r'\bversion\s+(\d+(?:\.\d+)?)\b',
+            r'\bv(\d+\.\d+(?:\.\d+)?)\b',  # v1.2.3
+            r'\bversion\s+(\d+(?:\.\d+)?)\b',  # version 1.2
+            # Match version-like patterns followed by version-related words
+            r'(\d+\.\d+(?:\.\d+)?)\s+(?:release|version|bug|error|issue)',
+            # Or preceded by version-related words
+            r'(?:running|using|with|version|v)\s+(\d+\.\d+(?:\.\d+)?)',
         ]
         
         for pattern in version_patterns:
             matches = re.findall(pattern, query, re.IGNORECASE)
-            versions.extend([f"v{v}" if not v.startswith("v") else v for v in matches])
+            for match in matches:
+                v = match if isinstance(match, str) else match
+                versions.append(f"v{v}" if not v.startswith("v") else v)
         
         return versions
     

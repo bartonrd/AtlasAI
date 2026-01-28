@@ -247,9 +247,9 @@ class IntentClassifier:
             if re.search(pattern, query_lower):
                 score += 0.25
         
-        # Check for technical terms or module names (basic heuristic)
-        if re.search(r'\b[A-Z][a-z]+(?:[A-Z][a-z]+)+\b', query_lower):
-            score += 0.15
+        # Check for technical terms or module names on original query (not lowercased)
+        # Note: This check needs the original query, so we skip it here
+        # The caller should check the original query separately
         
         return min(score, 1.0)
     
@@ -332,14 +332,21 @@ Respond with only: intent|confidence (e.g., "how_to|0.85")
             parts = response.strip().split("|")
             if len(parts) == 2:
                 intent = parts[0].strip()
-                confidence = float(parts[1].strip())
-                if intent in ALL_INTENTS:
-                    return IntentResult(
-                        intent=intent,
-                        confidence=confidence,
-                        rationale=f"LLM classification (confidence: {confidence:.2f})"
-                    )
-        except Exception:
+                confidence_str = parts[1].strip()
+                try:
+                    confidence = float(confidence_str)
+                    # Clamp confidence to valid range
+                    confidence = max(0.0, min(1.0, confidence))
+                    if intent in ALL_INTENTS:
+                        return IntentResult(
+                            intent=intent,
+                            confidence=confidence,
+                            rationale=f"LLM classification (confidence: {confidence:.2f})"
+                        )
+                except (ValueError, TypeError):
+                    pass
+        except (ValueError, TypeError, AttributeError) as e:
+            # Log but don't expose to user
             pass
         
         return IntentResult(
