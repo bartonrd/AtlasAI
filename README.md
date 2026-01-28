@@ -295,16 +295,15 @@ AtlasAI includes an intelligent intent classification system that automatically 
 The system automatically:
 1. Classifies each query into one of four intent categories
 2. Selects an intent-specific prompt template
-3. Returns responses optimized for that intent type
-4. Includes intent metadata in API responses
+3. **Displays the intent and confidence score before the response**
+4. Returns responses optimized for that intent type
+5. Includes intent metadata in API responses
 
-### Example
+### Display Example
 
-```bash
-# User asks: "How do I configure the database?"
-# System detects: intent="how_to", confidence=0.87
-# Response: Step-by-step configuration instructions
 ```
+You: How do I configure the database?
+🎯 Intent: How To | Confidence: 87.3%
 
 The system uses zero-shot classification when available, with automatic fallback to keyword-based classification (91.7% accuracy) for offline scenarios.
 
