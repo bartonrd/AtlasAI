@@ -439,3 +439,6 @@ documents/runbook/
 # Local copies of OneNote files (non-destructive mode)
 documents/onenote_copies/
 onenote_copies/
+
+# Test files
+test_*.py

@@ -93,6 +93,8 @@ class ChatResponse(BaseModel):
     """Response model for chat completion."""
     answer: str = Field(..., description="The generated answer")
     sources: List[Source] = Field(default_factory=list, description="Source references")
+    intent: str = Field(default="unknown", description="Detected intent type")
+    intent_confidence: float = Field(default=0.0, description="Confidence score for detected intent")
 
 
 class HealthResponse(BaseModel):
@@ -145,7 +147,7 @@ async def chat_completion(request: ChatRequest):
     """
     Chat completion endpoint.
     
-    Accepts a chat message and returns an answer with source references.
+    Accepts a chat message and returns an answer with source references and intent information.
     """
     if rag_engine is None:
         raise HTTPException(status_code=503, detail="RAG engine not initialized")
@@ -153,11 +155,13 @@ async def chat_completion(request: ChatRequest):
     try:
         logger.info(f"Processing chat request: {request.message[:100]}...")
         result = rag_engine.query(request.message, request.additional_documents)
-        logger.info(f"Generated answer with {len(result['sources'])} sources")
+        logger.info(f"Generated answer with {len(result['sources'])} sources (intent: {result.get('intent', 'unknown')})")
         
         return ChatResponse(
             answer=result["answer"],
-            sources=[Source(**src) for src in result["sources"]]
+            sources=[Source(**src) for src in result["sources"]],
+            intent=result.get("intent", "unknown"),
+            intent_confidence=result.get("intent_confidence", 0.0),
         )
     except FileNotFoundError as e:
         logger.error(f"File not found: {e}")
