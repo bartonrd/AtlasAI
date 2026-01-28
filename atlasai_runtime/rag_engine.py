@@ -32,7 +32,7 @@ from langchain_classic.chains import RetrievalQA
 from langchain_core.prompts import PromptTemplate
 
 # Local HF LLM
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
+from transformers import AutoModelForSeq2SeqLM, AutoModelForCausalLM, AutoTokenizer, AutoConfig, pipeline
 from langchain_huggingface import HuggingFacePipeline
 
 # Configure logging
@@ -223,19 +223,54 @@ class RAGEngine:
         return self._embeddings
 
     def _get_llm(self) -> HuggingFacePipeline:
-        """Get or create LLM pipeline."""
+        """Get or create LLM pipeline with automatic model type detection."""
         if self._llm is None:
+            logger.info(f"Loading model from: {self.text_gen_model_path}")
+            
+            # Load config to detect model architecture
+            config = AutoConfig.from_pretrained(self.text_gen_model_path)
+            model_type = config.model_type.lower()
+            
+            logger.info(f"Detected model type: {model_type}")
+            
+            # Load tokenizer
             tokenizer = AutoTokenizer.from_pretrained(self.text_gen_model_path)
-            model = AutoModelForSeq2SeqLM.from_pretrained(self.text_gen_model_path)
+            
+            # Determine if this is a seq2seq or causal LM model
+            is_seq2seq = model_type in ["t5", "bart", "pegasus", "mbart"]
+            
+            if is_seq2seq:
+                # Seq2Seq models (FLAN-T5, T5, etc.)
+                logger.info("Using Seq2Seq model (text2text-generation)")
+                model = AutoModelForSeq2SeqLM.from_pretrained(self.text_gen_model_path)
+                task = "text2text-generation"
+            else:
+                # Causal LM models (Mistral, Phi, Llama, GPT, etc.)
+                logger.info("Using Causal LM model (text-generation)")
+                model = AutoModelForCausalLM.from_pretrained(
+                    self.text_gen_model_path,
+                    trust_remote_code=True  # Required for some models like Phi-3
+                )
+                task = "text-generation"
+                
+                # Set pad token for causal models if not set
+                if tokenizer.pad_token is None:
+                    tokenizer.pad_token = tokenizer.eos_token
+            
+            # Create pipeline with appropriate settings
             gen_pipe = pipeline(
-                "text2text-generation",
+                task,
                 model=model,
                 tokenizer=tokenizer,
                 max_new_tokens=384,
                 do_sample=False,
                 truncation=True,
+                pad_token_id=tokenizer.pad_token_id,
             )
+            
             self._llm = HuggingFacePipeline(pipeline=gen_pipe)
+            logger.info("Model loaded successfully")
+        
         return self._llm
 
     def _get_intent_classifier(self) -> IntentClassifier:

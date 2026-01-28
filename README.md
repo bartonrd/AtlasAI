@@ -32,7 +32,10 @@ The application consists of two main components:
 
 ## Features
 
-- **Local LLM Processing**: Uses offline Hugging Face models (FLAN-T5) for text generation
+- **Local LLM Processing**: Uses offline Hugging Face models for text generation
+  - Multiple model support: FLAN-T5, Mistral, Phi-3, Llama, and more
+  - Automatic model type detection (Seq2Seq and Causal LM)
+  - **Domain-Optimized Models**: Enhanced support for electric utility, transmission, and distribution system documentation
 - **Intelligent Intent Classification**: Automatically detects query intent (error resolution, how-to, chit-chat, concept explanation) and tailors responses accordingly
 - **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
 - **Intent-Specific Prompts**: Custom prompt templates for each intent type deliver more accurate and helpful responses
@@ -63,18 +66,50 @@ pip install -r requirements.txt
 
 **Note**: Models are required for actual chat functionality. The runtime service will start and respond to `/health` checks without models, but `/chat` requests will fail.
 
-Download the following models to your local machine:
+#### Recommended Models for Electric Utility Domain
 
+AtlasAI now supports multiple offline models optimized for technical documentation. See [MODELS.md](MODELS.md) for comprehensive model selection guidance.
+
+**Quick Start (Default Models):**
 - **Embedding Model**: `sentence-transformers/all-MiniLM-L6-v2`
 - **Text Generation Model**: `google/flan-t5-base` (or `google/flan-t5-small` for faster CPU runs)
+
+**Recommended for Better Performance on Electric Utility Documentation:**
+- **Embedding Model**: `sentence-transformers/all-mpnet-base-v2` (better semantic understanding)
+- **Text Generation Models**:
+  - `mistralai/Mistral-7B-Instruct-v0.2` - Best for complex troubleshooting and error resolution
+  - `microsoft/Phi-3-mini-4k-instruct` - Efficient balance of quality and speed
+  - `meta-llama/Llama-3.2-3B-Instruct` - Good all-around performance
+
+#### Model Path Configuration
 
 Update the model paths via environment variables (see Configuration section) or use the defaults in the code:
 
 - Default embedding model path: `C:\models\all-MiniLM-L6-v2`
 - Default text generation model path: `C:\models\flan-t5-base`
 
-You can download models using Python:
+#### Downloading Models
 
+**Easy Download Using the Download Utility (Recommended):**
+
+```bash
+# List available preset configurations
+python download_models.py --list-presets
+
+# Download default models (FLAN-T5 + all-MiniLM)
+python download_models.py --preset default
+
+# Download recommended models for electric utility domain (Phi-3 + all-mpnet)
+python download_models.py --preset utility
+
+# Download optimal models for best quality (Mistral-7B + all-mpnet)
+python download_models.py --preset optimal
+
+# Download minimal models for fastest performance (FLAN-T5-small + all-MiniLM)
+python download_models.py --preset minimal
+```
+
+**Manual Download - Default FLAN-T5 Model:**
 ```python
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 from sentence_transformers import SentenceTransformer
@@ -89,6 +124,28 @@ model = AutoModelForSeq2SeqLM.from_pretrained('google/flan-t5-base')
 tokenizer.save_pretrained(r'C:\models\flan-t5-base')
 model.save_pretrained(r'C:\models\flan-t5-base')
 ```
+
+**Manual Download - Mistral-7B (Recommended for Complex Queries):**
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained('mistralai/Mistral-7B-Instruct-v0.2')
+model = AutoModelForCausalLM.from_pretrained('mistralai/Mistral-7B-Instruct-v0.2')
+tokenizer.save_pretrained(r'C:\models\mistral-7b-instruct')
+model.save_pretrained(r'C:\models\mistral-7b-instruct')
+```
+
+**Manual Download - Phi-3-Mini (Recommended for Efficiency):**
+```python
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained('microsoft/Phi-3-mini-4k-instruct', trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained('microsoft/Phi-3-mini-4k-instruct', trust_remote_code=True)
+tokenizer.save_pretrained(r'C:\models\phi-3-mini')
+model.save_pretrained(r'C:\models\phi-3-mini')
+```
+
+**Note**: The system automatically detects the model type (Seq2Seq or Causal LM) and uses the appropriate pipeline. See [MODELS.md](MODELS.md) for detailed model selection guidance based on your use case.
 
 ## Project Structure
 
