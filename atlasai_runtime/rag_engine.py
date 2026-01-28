@@ -5,7 +5,7 @@ RAG Engine - Core logic for document retrieval and question answering.
 import os
 import re
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 # Loaders: PDF + DOCX
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
@@ -53,7 +53,7 @@ class RAGEngine:
         onenote_runbook_path: str,
         embedding_model: str,
         text_gen_model: str,
-        top_k: int = 4,
+        top_k: int = 6,  # Increased from 4 to 6 for better coverage
         chunk_size: int = 800,
         chunk_overlap: int = 150,
     ):
@@ -65,7 +65,7 @@ class RAGEngine:
             onenote_runbook_path: Path to directory containing OneNote runbook files
             embedding_model: Path to HuggingFace embedding model
             text_gen_model: Path to HuggingFace text generation model
-            top_k: Number of chunks to retrieve
+            top_k: Number of chunks to retrieve (increased to 6 for better quality)
             chunk_size: Size of text chunks
             chunk_overlap: Overlap between chunks
         """
@@ -324,18 +324,19 @@ Answer (brief, friendly response as markdown bullets):
         elif intent == "concept_explanation":
             template = """You are a technical expert providing clear explanations of electrical grid systems and error conditions.
 
-The user wants to understand a concept, technical detail, or error. Using the retrieved context, explain it comprehensively.
+The user wants to understand a concept, technical detail, or system component. Using the retrieved context, explain it comprehensively.
 
-Rules:
-- Define key terms and concepts clearly
-- Explain the cause and significance of the issue
-- Provide context about why it's important for grid reliability
-- Include relevant technical details, examples, and notes from the context
-- If this is an error or issue, explain what causes it and its implications
-- Be thorough - electrical grid reliability is critical
-- FORMAT your answer as 5–10 Markdown bullet points
-- Each bullet MUST start with "- " and be followed by a newline
-- Build explanation progressively from basic to detailed
+CRITICAL INSTRUCTIONS:
+- Use ALL relevant information from the retrieved context
+- Provide a complete, detailed explanation (minimum 5 bullet points)
+- Define what the concept/component is and its purpose
+- Explain how it works or how it's used
+- Include technical details, parameters, and configuration information
+- Mention related components or concepts
+- If the context is about a specific system (like Model Manager), explain all its key features and functions
+- DO NOT provide generic or vague responses
+- DO NOT extract random menu items or UI text
+- If the context doesn't contain sufficient information, explicitly state what you do know and what's missing
 
 Question:
 {question}
@@ -343,7 +344,7 @@ Question:
 Context:
 {context}
 
-Answer (comprehensive concept explanation as markdown bullets):
+Answer (comprehensive concept explanation as markdown bullets - minimum 5 substantial points):
 """
         else:
             # Use default template
@@ -470,12 +471,80 @@ Answer (markdown bullets only):
                     expansions.append("measurement point")
                     expansions.append("device mapping")
                     expansions.append("station")
+                
+                # Add domain-specific expansions for common terms
+                if "model" in query_lower and "manager" in query_lower:
+                    expansions.append("Distribution Model Manager")
+                    expansions.append("ADMS")
+                    expansions.append("utility model")
+                    expansions.append("modeling")
                     
                 if expansions:
                     # Return original query + expanded terms for better matching
                     return f"{query} {' '.join(expansions)}"
         
         return query
+
+    def _evaluate_response_quality(self, query: str, answer: str, sources: List[Any]) -> Tuple[bool, str]:
+        """
+        Evaluate the quality and relevance of a generated response.
+        
+        Args:
+            query: Original user query
+            answer: Generated answer
+            sources: Retrieved source documents
+            
+        Returns:
+            Tuple of (is_quality_acceptable, feedback_message)
+        """
+        # Extract key terms from query
+        query_lower = query.lower()
+        query_terms = set(re.findall(r'\b\w+\b', query_lower))
+        # Remove common stop words
+        stop_words = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'what', 'how', 'why', 'when', 'where'}
+        query_terms = query_terms - stop_words
+        
+        answer_lower = answer.lower()
+        
+        # Check 1: Answer must have reasonable length
+        if len(answer.strip()) < 20:
+            return False, "Response too short"
+        
+        # Check 2: Answer should contain at least some query terms or related terms
+        answer_terms = set(re.findall(r'\b\w+\b', answer_lower))
+        
+        # Calculate term overlap
+        term_overlap = len(query_terms & answer_terms)
+        overlap_ratio = term_overlap / max(len(query_terms), 1)
+        
+        # For technical queries, we need at least some term overlap
+        if len(query_terms) > 0 and overlap_ratio < 0.2:
+            # Check if answer has technical content at all
+            technical_indicators = ['system', 'file', 'error', 'configuration', 'station', 
+                                   'model', 'manager', 'adms', 'scada', 'device', 'point']
+            has_technical = any(ind in answer_lower for ind in technical_indicators)
+            if not has_technical:
+                return False, f"Response lacks relevance to query (term overlap: {overlap_ratio:.0%})"
+        
+        # Check 3: Avoid obviously irrelevant content
+        # Common patterns of poor responses
+        bad_patterns = [
+            r'^file\s*[>:]\s*exit',  # "File > Exit" type responses
+            r'^close',
+            r'^\s*[-•]\s*$',  # Just bullets with no content
+        ]
+        
+        for pattern in bad_patterns:
+            if re.search(pattern, answer_lower, re.MULTILINE):
+                return False, "Response contains irrelevant menu/UI text"
+        
+        # Check 4: Must have multiple bullet points or substantial content
+        bullet_count = answer.count('\n-')
+        if bullet_count < 2 and len(answer) < 100:
+            return False, "Response lacks sufficient detail"
+        
+        # If we passed all checks, quality is acceptable
+        return True, "Quality acceptable"
 
     def query(self, question: str, additional_documents: Optional[List[str]] = None) -> Dict[str, Any]:
         """
@@ -526,6 +595,34 @@ Answer (markdown bullets only):
 
         # Format answer as bullets
         formatted_answer = self._to_bullets(answer)
+        
+        # Evaluate response quality
+        is_quality_ok, quality_feedback = self._evaluate_response_quality(question, formatted_answer, sources)
+        
+        if not is_quality_ok:
+            logger.warning(f"Poor quality response detected: {quality_feedback}")
+            logger.warning(f"Original answer: {formatted_answer[:200]}...")
+            
+            # Try to improve by using original (non-expanded) query if we expanded it
+            if expanded_question != question:
+                logger.info("Retrying with original query...")
+                result = qa_chain.invoke({"query": question})
+                answer = result.get("result", "")
+                sources = result.get("source_documents", [])
+                formatted_answer = self._to_bullets(answer)
+                is_quality_ok_retry, quality_feedback_retry = self._evaluate_response_quality(question, formatted_answer, sources)
+                
+                if is_quality_ok_retry:
+                    logger.info("Retry successful with original query")
+                else:
+                    logger.warning(f"Retry also produced poor quality: {quality_feedback_retry}")
+            
+            # If still poor quality, add a note to the response
+            if not is_quality_ok:
+                if formatted_answer.strip():
+                    formatted_answer = f"- The available documentation may not fully cover this topic\n{formatted_answer}"
+                else:
+                    formatted_answer = f"- I don't have sufficient information about '{question}' in the available documentation\n- Please check the source documents or try rephrasing your question with more specific terms"
 
         # Extract source information
         source_list = []
