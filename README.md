@@ -32,6 +32,7 @@ The application consists of two main components:
 
 ## Features
 
+### Core Capabilities
 - **Local LLM Processing**: Uses offline Hugging Face models (FLAN-T5) for text generation
 - **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
 - **OneNote Conversion**: Automatically converts .one files to PDF on startup for better text extraction
@@ -39,6 +40,17 @@ The application consists of two main components:
 - **Offline-First**: No required external SaaS dependencies
 - **Interactive Console**: Simple chat interface in the C# application
 - **Process Management**: C# host automatically starts/stops the Python runtime
+
+### Enhanced Inference Pipeline (NEW)
+- **Intent Classification**: Automatically detects user intent (how-to, bug resolution, tool explanation, etc.)
+- **Query Rewriting**: Expands queries based on intent for better retrieval
+- **Retrieval Routing**: Applies intent-specific filters to document search
+- **Grounded Answer Synthesis**: Generates structured answers with citations
+- **Clarification Handling**: Asks precise questions when confidence is low
+- **Telemetry & Monitoring**: Rich telemetry for tracking performance and user satisfaction
+- **Pluggable Architecture**: Support for different LLM and search backends
+
+For detailed documentation on the inference pipeline, see [INFERENCE_INTEGRATION.md](INFERENCE_INTEGRATION.md).
 
 ## Prerequisites
 
@@ -232,6 +244,13 @@ Configure the Python runtime using environment variables:
 - `ATLASAI_CHUNK_SIZE` - Size of text chunks (default: `800`)
 - `ATLASAI_CHUNK_OVERLAP` - Overlap between chunks (default: `150`)
 
+#### Inference Pipeline Configuration (NEW)
+
+- `ATLASAI_CONFIDENCE_THRESHOLD` - Minimum confidence for answers (default: `0.55`)
+- `ATLASAI_MIN_RETRIEVAL_SCORE` - Minimum retrieval score threshold (default: `0.25`)
+- `ATLASAI_MAX_ANSWER_TOKENS` - Maximum tokens in generated answer (default: `384`)
+- `ATLASAI_ENABLE_INFERENCE` - Enable inference pipeline (default: `true`)
+
 Example:
 ```bash
 # Windows (PowerShell)
@@ -266,16 +285,117 @@ When running the Python runtime standalone, you can interact with it via HTTP:
 curl http://localhost:8000/health
 ```
 
-**Chat Request:**
+**Chat Request (Legacy Mode):**
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "What is ADMS?"}'
 ```
 
+**Chat Request with Inference Pipeline (NEW):**
+```bash
+curl -X POST http://localhost:8000/chat/inference \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "How do I install the software?",
+    "use_inference": true
+  }'
+```
+
+The inference endpoint provides:
+- Intent classification (how_to, bug_resolution, tool_explanation, etc.)
+- Query rewriting for better retrieval
+- Intent-specific answer formatting
+- Citations with source references
+- Clarifying questions for low-confidence queries
+- Rich telemetry data
+
+Example response:
+```json
+{
+  "answer": "**Steps:**\n1. Download the installer...\n2. Run setup.exe...",
+  "question": null,
+  "intent": "how_to",
+  "confidence": 0.85,
+  "citations": [
+    {"index": "1", "title": "Installation Guide", "url": "/docs/install.pdf"}
+  ],
+  "telemetry": {
+    "intent": "how_to",
+    "confidence": 0.85,
+    "rewritten_query": "How do I install setup configure...",
+    "elapsed_ms": 234
+  }
+}
+```
+
 **Interactive API Documentation:**
 
 Open `http://localhost:8000/docs` in your browser to access the interactive FastAPI documentation (Swagger UI).
+
+## API Reference
+
+### Endpoints
+
+#### `GET /health`
+Returns service health status and configuration.
+
+#### `POST /chat` (Legacy)
+Standard RAG chat without inference enhancements. Preserves backward compatibility.
+
+**Request:**
+```json
+{
+  "message": "Your question",
+  "additional_documents": ["optional/path/to/doc.pdf"]
+}
+```
+
+**Response:**
+```json
+{
+  "answer": "Formatted answer with bullets",
+  "sources": [
+    {"index": 1, "source": "document.pdf", "page": "5"}
+  ]
+}
+```
+
+#### `POST /chat/inference` (NEW)
+Enhanced chat with intent classification, query rewriting, and grounded synthesis.
+
+**Request:**
+```json
+{
+  "message": "Your question",
+  "use_inference": true,
+  "user_feedback": "optional feedback"
+}
+```
+
+**Response:**
+```json
+{
+  "answer": "Structured answer (if confident)",
+  "question": "Clarifying question (if not confident)",
+  "intent": "how_to | bug_resolution | tool_explanation | escalate_or_ticket | chitchat | other",
+  "confidence": 0.85,
+  "citations": [
+    {"index": "1", "title": "Doc Title", "url": "/path/to/doc"}
+  ],
+  "telemetry": {
+    "user_query": "...",
+    "intent": "...",
+    "confidence": 0.85,
+    "rewritten_query": "...",
+    "num_retrieved": 4,
+    "had_clarification": false,
+    "elapsed_ms": 234
+  }
+}
+```
+
+For detailed API documentation and integration guide, see [INFERENCE_INTEGRATION.md](INFERENCE_INTEGRATION.md).
 
 ## Adding Documents
 
@@ -368,6 +488,43 @@ copy_mapping = copy_onenote_files_locally(files, "local_copies/")
 - Default path: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`
 
 **Safety**: The non-destructive mode ensures your original OneNote files are never modified or damaged during conversion. All processing happens on local copies stored in the documents folder.
+
+## Testing
+
+The inference pipeline includes a comprehensive test suite with 62 tests covering all components.
+
+### Running Tests
+
+**Run all tests:**
+```bash
+cd /home/runner/work/AtlasAI/AtlasAI
+python -m pytest tests/ -v
+```
+
+**Run specific test module:**
+```bash
+python -m pytest tests/test_intent_classifier.py -v
+python -m pytest tests/test_query_rewriter.py -v
+python -m pytest tests/test_retriever.py -v
+python -m pytest tests/test_answer_synthesizer.py -v
+python -m pytest tests/test_inference_engine.py -v
+```
+
+**Run with coverage:**
+```bash
+python -m pytest tests/ --cov=atlasai_runtime --cov-report=html
+```
+
+### Test Coverage
+
+- **Intent Classifier**: 14 tests (pattern matching, edge cases, bias)
+- **Query Rewriter**: 14 tests (entity extraction, rewriting strategies)
+- **Retriever**: 13 tests (filtering, mock backend, FAISS integration)
+- **Answer Synthesizer**: 10 tests (grounded synthesis, citations, formatting)
+- **Inference Engine**: 13 tests (end-to-end pipeline, telemetry, error handling)
+- **Total**: 62 tests covering realistic scenarios and edge cases
+
+All tests use mocks and fakes to avoid external dependencies.
 
 ## Troubleshooting
 
