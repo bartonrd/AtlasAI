@@ -9,9 +9,6 @@ from typing import List, Dict, Any, Optional
 # Loaders: PDF + DOCX
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 
-# OneNote converter
-from .onenote_converter import convert_onenote_directory
-
 # Splitter (v1 package)
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -44,7 +41,6 @@ class RAGEngine:
     def __init__(
         self,
         documents_dir: str,
-        onenote_runbook_path: str,
         embedding_model: str,
         text_gen_model: str,
         top_k: int = 4,
@@ -56,7 +52,6 @@ class RAGEngine:
 
         Args:
             documents_dir: Path to directory containing documents
-            onenote_runbook_path: Path to directory containing OneNote runbook files
             embedding_model: Path to HuggingFace embedding model
             text_gen_model: Path to HuggingFace text generation model
             top_k: Number of chunks to retrieve
@@ -64,7 +59,6 @@ class RAGEngine:
             chunk_overlap: Overlap between chunks
         """
         self.documents_dir = documents_dir
-        self.onenote_runbook_path = onenote_runbook_path
         self.embedding_model_path = embedding_model
         self.text_gen_model_path = text_gen_model
         self.top_k = top_k
@@ -76,9 +70,6 @@ class RAGEngine:
         self._llm = None
         self._qa_chain = None
         
-        # Convert OneNote files to PDF on initialization
-        self._convert_onenote_runbook()
-        
         # Eagerly initialize the QA chain with all documents
         try:
             print("Initializing RAG corpus...")
@@ -87,50 +78,6 @@ class RAGEngine:
         except Exception as e:
             print(f"Warning: Failed to initialize RAG corpus during startup: {e}")
             print("RAG corpus will be initialized on first query")
-    
-    def _convert_onenote_runbook(self):
-        """
-        Convert OneNote files from the runbook path to PDFs.
-        Saves converted PDFs in documents/runbook/ directory.
-        """
-        # Create runbook directory path
-        runbook_output_dir = os.path.join(self.documents_dir, "runbook")
-        
-        print("=" * 70)
-        print("OneNote to PDF Conversion")
-        print("=" * 70)
-        print(f"Source directory: {self.onenote_runbook_path}")
-        print(f"Output directory: {runbook_output_dir}")
-        print(f"Source exists: {os.path.exists(self.onenote_runbook_path)}")
-        
-        # Convert all .one files to PDF
-        converted_count = convert_onenote_directory(
-            source_dir=self.onenote_runbook_path,
-            output_dir=runbook_output_dir,
-            overwrite=True
-        )
-        
-        if converted_count > 0:
-            print(f"[SUCCESS] Successfully converted {converted_count} OneNote file(s) to PDF")
-            # List the converted files
-            if os.path.exists(runbook_output_dir):
-                pdf_files = [f for f in os.listdir(runbook_output_dir) if f.lower().endswith('.pdf')]
-                print(f"[INFO] PDF files in runbook directory: {len(pdf_files)}")
-                for pdf_file in pdf_files[:MAX_FILES_TO_DISPLAY]:
-                    pdf_path = os.path.join(runbook_output_dir, pdf_file)
-                    try:
-                        size = os.path.getsize(pdf_path)
-                        print(f"  - {pdf_file} ({size:,} bytes)")
-                    except OSError as e:
-                        print(f"  - {pdf_file} (error reading size: {e})")
-                if len(pdf_files) > MAX_FILES_TO_DISPLAY:
-                    print(f"  ... and {len(pdf_files) - MAX_FILES_TO_DISPLAY} more")
-        else:
-            print("[WARNING] No OneNote files were converted")
-            if not os.path.exists(self.onenote_runbook_path):
-                print(f"  Reason: Source directory does not exist")
-                print(f"  Tip: Set ATLASAI_ONENOTE_RUNBOOK_PATH environment variable to your OneNote files location")
-        print("=" * 70)
 
     def _load_documents(self, additional_paths: Optional[List[str]] = None) -> List[Any]:
         """

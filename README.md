@@ -34,7 +34,6 @@ The application consists of two main components:
 
 - **Local LLM Processing**: Uses offline Hugging Face models (FLAN-T5) for text generation
 - **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
-- **OneNote Conversion**: Automatically converts .one files to PDF on startup for better text extraction
 - **HTTP API**: Clean boundary between C# host and Python runtime
 - **Offline-First**: No required external SaaS dependencies
 - **Interactive Console**: Simple chat interface in the C# application
@@ -225,7 +224,6 @@ dotnet run
 Configure the Python runtime using environment variables:
 
 - `ATLASAI_DOCUMENTS_DIR` - Path to documents folder (default: `./documents`)
-- `ATLASAI_ONENOTE_RUNBOOK_PATH` - Path to OneNote runbook directory (default: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`)
 - `ATLASAI_EMBEDDING_MODEL` - Path to embedding model (default: `C:\models\all-MiniLM-L6-v2`)
 - `ATLASAI_TEXT_GEN_MODEL` - Path to text generation model (default: `C:\models\flan-t5-base`)
 - `ATLASAI_TOP_K` - Number of document chunks to retrieve (default: `4`)
@@ -237,13 +235,11 @@ Example:
 # Windows (PowerShell)
 $env:ATLASAI_EMBEDDING_MODEL="D:\models\embeddings"
 $env:ATLASAI_TEXT_GEN_MODEL="D:\models\flan-t5-small"
-$env:ATLASAI_ONENOTE_RUNBOOK_PATH="\\server\path\to\runbook"
 python -m atlasai_runtime
 
 # Unix/Linux/macOS
 export ATLASAI_EMBEDDING_MODEL="/home/user/models/embeddings"
 export ATLASAI_TEXT_GEN_MODEL="/home/user/models/flan-t5-small"
-export ATLASAI_ONENOTE_RUNBOOK_PATH="/mnt/network/path/to/runbook"
 python -m atlasai_runtime
 ```
 
@@ -280,22 +276,6 @@ Open `http://localhost:8000/docs` in your browser to access the interactive Fast
 ## Adding Documents
 
 Place PDF or DOCX files in the `documents/` folder. The runtime will automatically load them when processing queries.
-
-### OneNote Document Support
-
-AtlasAI automatically converts OneNote (.one) files to PDF format for better text extraction and processing.
-
-**How it works:**
-- On startup, the application scans the configured OneNote runbook path for .one files
-- All .one files are converted to PDF format and saved in `documents/runbook/` folder
-- The converted PDFs are automatically loaded into the RAG context
-- The runbook folder is cleared and regenerated on each startup to ensure fresh conversions
-
-**Configuration:**
-- Set `ATLASAI_ONENOTE_RUNBOOK_PATH` environment variable to point to your OneNote files directory
-- Default path: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`
-
-**Note**: The conversion extracts metadata, properties, and embedded file information from OneNote files. While this provides searchable content, it may not preserve the exact visual layout of the original notes.
 
 ## Troubleshooting
 
