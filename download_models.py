@@ -23,7 +23,10 @@ def download_embedding_model(model_name: str, save_path: str):
         model = SentenceTransformer(model_name)
         
         print(f"Saving model to: {save_path}")
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        # Ensure parent directory exists
+        parent_dir = os.path.dirname(save_path)
+        if parent_dir:  # Only create if there is a directory component
+            os.makedirs(parent_dir, exist_ok=True)
         model.save(save_path)
         
         print(f"✓ Successfully downloaded and saved: {model_name}")
@@ -50,13 +53,25 @@ def download_text_generation_model(model_name: str, save_path: str, model_type: 
             detected_type = config.model_type.lower()
             print(f"Detected model type: {detected_type}")
             
-            is_seq2seq = detected_type in ["t5", "bart", "pegasus", "mbart"]
+            seq2seq_models = ["t5", "bart", "pegasus", "mbart", "led", "bigbird_pegasus"]
+            is_seq2seq = detected_type in seq2seq_models
             model_type = "seq2seq" if is_seq2seq else "causal"
+        
+        # Determine if trust_remote_code is needed
+        needs_trust = model_name.lower().startswith("microsoft/phi")
+        
+        if needs_trust:
+            print("\n" + "="*70)
+            print("SECURITY WARNING:")
+            print("This model requires trust_remote_code=True, which allows execution")
+            print("of arbitrary code from the model repository. Only proceed if you")
+            print("trust the model source.")
+            print("="*70 + "\n")
         
         print(f"Loading tokenizer...")
         tokenizer = AutoTokenizer.from_pretrained(
             model_name,
-            trust_remote_code=True  # Required for some models like Phi-3
+            trust_remote_code=needs_trust
         )
         
         print(f"Loading model (this is the large download)...")
@@ -65,11 +80,14 @@ def download_text_generation_model(model_name: str, save_path: str, model_type: 
         else:
             model = AutoModelForCausalLM.from_pretrained(
                 model_name,
-                trust_remote_code=True
+                trust_remote_code=needs_trust
             )
         
         print(f"Saving model to: {save_path}")
-        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        # Ensure parent directory exists
+        parent_dir = os.path.dirname(save_path)
+        if parent_dir:  # Only create if there is a directory component
+            os.makedirs(parent_dir, exist_ok=True)
         tokenizer.save_pretrained(save_path)
         model.save_pretrained(save_path)
         
@@ -117,26 +135,31 @@ Examples:
     
     args = parser.parse_args()
     
-    # Define presets
+    # Detect platform and adjust default paths
+    import platform
+    is_windows = platform.system() == "Windows"
+    base_path = "C:\\models" if is_windows else os.path.expanduser("~/models")
+    
+    # Define presets with platform-appropriate paths
     presets = {
         "default": {
-            "embedding": ("sentence-transformers/all-MiniLM-L6-v2", "C:\\models\\all-MiniLM-L6-v2"),
-            "text_gen": ("google/flan-t5-base", "C:\\models\\flan-t5-base"),
+            "embedding": ("sentence-transformers/all-MiniLM-L6-v2", os.path.join(base_path, "all-MiniLM-L6-v2")),
+            "text_gen": ("google/flan-t5-base", os.path.join(base_path, "flan-t5-base")),
             "description": "Default models - fast, efficient, good starting point"
         },
         "minimal": {
-            "embedding": ("sentence-transformers/all-MiniLM-L6-v2", "C:\\models\\all-MiniLM-L6-v2"),
-            "text_gen": ("google/flan-t5-small", "C:\\models\\flan-t5-small"),
+            "embedding": ("sentence-transformers/all-MiniLM-L6-v2", os.path.join(base_path, "all-MiniLM-L6-v2")),
+            "text_gen": ("google/flan-t5-small", os.path.join(base_path, "flan-t5-small")),
             "description": "Minimal models - fastest, lowest resource usage"
         },
         "utility": {
-            "embedding": ("sentence-transformers/all-mpnet-base-v2", "C:\\models\\all-mpnet-base-v2"),
-            "text_gen": ("microsoft/Phi-3-mini-4k-instruct", "C:\\models\\phi-3-mini"),
+            "embedding": ("sentence-transformers/all-mpnet-base-v2", os.path.join(base_path, "all-mpnet-base-v2")),
+            "text_gen": ("microsoft/Phi-3-mini-4k-instruct", os.path.join(base_path, "phi-3-mini")),
             "description": "Recommended for electric utility documentation - balanced performance"
         },
         "optimal": {
-            "embedding": ("sentence-transformers/all-mpnet-base-v2", "C:\\models\\all-mpnet-base-v2"),
-            "text_gen": ("mistralai/Mistral-7B-Instruct-v0.2", "C:\\models\\mistral-7b-instruct"),
+            "embedding": ("sentence-transformers/all-mpnet-base-v2", os.path.join(base_path, "all-mpnet-base-v2")),
+            "text_gen": ("mistralai/Mistral-7B-Instruct-v0.2", os.path.join(base_path, "mistral-7b-instruct")),
             "description": "Optimal models - best quality for complex technical queries"
         }
     }

@@ -11,15 +11,15 @@ uvicorn>=0.24.0
 pydantic>=2.0.0
 
 # LangChain and RAG dependencies
-langchain-community>=0.0.20
+langchain-community>=0.3.27  # Updated for security fixes
 langchain-classic>=0.2.0
 langchain-core>=0.1.23
 langchain-text-splitters>=0.0.1
 langchain-huggingface>=0.0.1
 
 # ML models
-transformers>=4.37.0
-torch>=2.1.0
+transformers>=4.48.0  # Updated for security fixes
+torch>=2.6.0  # Updated for security fixes
 faiss-cpu>=1.7.4
 sentence-transformers>=2.3.0
 
