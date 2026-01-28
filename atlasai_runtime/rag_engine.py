@@ -337,12 +337,14 @@ Response (conversational, brief):
 Rules:
 - Define the concept using information from the context
 - Explain the purpose, function, or importance
+- If the query mentions errors or issues, ALSO explain how to resolve them
 - Use clear, accessible language
 - Provide examples if available in the context
 - If the concept isn't in the context, provide a general explanation
 - FORMAT your answer as 3–7 informative Markdown bullet points
 - Each bullet MUST start with "- " and be followed by a newline
 - Build from basic to more detailed information
+- Include troubleshooting steps if relevant to the concept
 
 Question (Concept):
 {question}
@@ -467,6 +469,15 @@ Answer (markdown bullets only):
             try:
                 intent, intent_confidence = self._intent_classifier.classify(question)
                 print(f"Detected intent: {intent} (confidence: {intent_confidence:.2f})")
+                
+                # Import MIN_INTENT_CONFIDENCE_THRESHOLD from intent_classifier
+                from .intent_classifier import MIN_INTENT_CONFIDENCE_THRESHOLD
+                
+                # If confidence is too low, fall back to default/concept explanation
+                if intent_confidence < MIN_INTENT_CONFIDENCE_THRESHOLD:
+                    print(f"Intent confidence too low ({intent_confidence:.2f}), using concept_explanation fallback")
+                    intent = INTENT_CONCEPT_EXPLANATION
+                    intent_confidence = MIN_INTENT_CONFIDENCE_THRESHOLD
             except Exception as e:
                 print(f"Warning: Intent classification failed: {e}")
                 intent = None

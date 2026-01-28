@@ -26,12 +26,14 @@ INTENT_CONCEPT_EXPLANATION = "concept_explanation"
 
 # Configuration constants for classification
 MODEL_CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to use model prediction
+MIN_INTENT_CONFIDENCE_THRESHOLD = 0.4  # Minimum confidence to use detected intent (fall back to default if lower)
 MAX_HEURISTIC_CONFIDENCE = 0.95   # Maximum confidence for heuristic matches
 BASE_HEURISTIC_CONFIDENCE = 0.7   # Base confidence when keywords match
 CONFIDENCE_INCREMENT = 0.1        # Increment per additional keyword match
 SHORT_MESSAGE_CONFIDENCE = 0.6    # Confidence for very short messages (likely chit-chat)
 QUESTION_CONFIDENCE = 0.7         # Confidence for question patterns (likely concept explanation)
 DEFAULT_CONFIDENCE = 0.5          # Default confidence when no strong pattern matches
+TECHNICAL_TERM_BOOST = 0.3        # Boost confidence when technical terms detected
 
 # Keyword patterns for each intent type
 ERROR_KEYWORDS = [
@@ -61,6 +63,22 @@ CONCEPT_KEYWORDS = [
     r"\bexplain\b", r"\bdescribe\b", r"\btell\s+me\s+about\b",
     r"\bmeaning\s+of\b", r"\bunderstand\b", r"\blearn\s+about\b",
     r"\bconcept\b", r"\btheory\b", r"\bpurpose\s+of\b",
+]
+
+# Domain-specific technical terms for SCADA/Electrical Grid
+# These indicate technical queries, not chit-chat, even if the query is short
+TECHNICAL_DOMAIN_KEYWORDS = [
+    # SCADA/Grid specific
+    r"\bpoint\b", r"\bdevice\b", r"\bstation\b", r"\bmapped?\b", r"\bmapping\b",
+    r"\btelemetry\b", r"\bscada\b", r"\bems\b", r"\badms\b",
+    r"\bconverter\b", r"\binternal\b", r"\bexternal\b",
+    r"\bxml\b", r"\bsifb\b", r"\baudit\s+trail\b",
+    r"\bmeasurement\b", r"\btap\s+position\b", r"\bdisplay\s+file\b",
+    r"\bstation\s+placement\b", r"\bdevxref\b", r"\bconnectivity\b",
+    # General technical terms
+    r"\bmodel\b", r"\bbuild\b", r"\brebuild\b", r"\bconfig\b",
+    r"\bconnection\b", r"\bassociation\b", r"\bmismatch\b",
+    r"\bunmapped?\b", r"\bmis-assigned\b", r"\brename\b",
 ]
 
 
@@ -164,6 +182,9 @@ class IntentClassifier:
         Returns:
             Tuple of (intent_type, confidence_score)
         """
+        # Check for domain-specific technical terms first
+        has_technical_terms = self._count_keyword_matches(text, TECHNICAL_DOMAIN_KEYWORDS) > 0
+        
         # Count matches for each intent type
         error_score = self._count_keyword_matches(text, ERROR_KEYWORDS)
         how_to_score = self._count_keyword_matches(text, HOW_TO_KEYWORDS)
@@ -185,8 +206,13 @@ class IntentClassifier:
         
         # If no strong matches, default based on message characteristics
         if score == 0:
-            # Very short messages are likely chit-chat
-            if len(text.split()) <= 3:
+            # If message contains technical terms, it's likely a technical query, not chit-chat
+            if has_technical_terms:
+                # Technical queries without explicit intent keywords are likely asking for explanation
+                intent = INTENT_CONCEPT_EXPLANATION
+                confidence = BASE_HEURISTIC_CONFIDENCE
+            # Very short messages without technical terms are likely chit-chat
+            elif len(text.split()) <= 3:
                 intent = INTENT_CHIT_CHAT
                 confidence = SHORT_MESSAGE_CONFIDENCE
             # Questions are likely concept explanations
@@ -200,6 +226,19 @@ class IntentClassifier:
             # Calculate confidence based on score magnitude
             # More matches = higher confidence
             confidence = min(MAX_HEURISTIC_CONFIDENCE, BASE_HEURISTIC_CONFIDENCE + (score * CONFIDENCE_INCREMENT))
+            
+            # Boost confidence if technical terms are present (indicates technical query, not casual chat)
+            if has_technical_terms and intent != INTENT_CHIT_CHAT:
+                confidence = min(MAX_HEURISTIC_CONFIDENCE, confidence + TECHNICAL_TERM_BOOST)
+            
+            # Special handling: if both error and concept keywords present with similar scores,
+            # prefer concept explanation as it can encompass error information
+            if error_score > 0 and concept_score > 0 and abs(error_score - concept_score) <= 1:
+                intent = INTENT_CONCEPT_EXPLANATION
+                confidence = min(MAX_HEURISTIC_CONFIDENCE, BASE_HEURISTIC_CONFIDENCE + (max(error_score, concept_score) * CONFIDENCE_INCREMENT))
+        
+        logger.info(f"Heuristic classified as '{intent}' with confidence {confidence:.2f}")
+        return intent, confidence
         
         logger.info(f"Heuristic classified as '{intent}' with confidence {confidence:.2f}")
         return intent, confidence
