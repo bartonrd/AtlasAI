@@ -1,6 +1,7 @@
 """
 FastAPI application for AtlasAI Runtime.
 Uses Ollama, Chroma, and bge-base-en embeddings.
+Includes LangGraph agent for local task execution.
 """
 
 import os
@@ -13,6 +14,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from .rag_engine_ollama import RAGEngineOllama
+from .agent_system import LocalTaskAgent
 
 # Configure logging
 logging.basicConfig(
@@ -28,12 +30,15 @@ OLLAMA_MODEL = os.getenv("ATLASAI_OLLAMA_MODEL", "llama3.1:8b-instruct-q4_0")
 OLLAMA_BASE_URL = os.getenv("ATLASAI_OLLAMA_BASE_URL", "http://localhost:11434")
 EMBEDDING_MODEL = os.getenv("ATLASAI_EMBEDDING_MODEL", "BAAI/bge-base-en-v1.5")
 CHROMA_PERSIST_DIR = os.getenv("ATLASAI_CHROMA_PERSIST_DIR", None)
+ENABLE_AGENT = os.getenv("ATLASAI_ENABLE_AGENT", "true").lower() == "true"
 TOP_K = int(os.getenv("ATLASAI_TOP_K", "4"))
 CHUNK_SIZE = int(os.getenv("ATLASAI_CHUNK_SIZE", "800"))
 CHUNK_OVERLAP = int(os.getenv("ATLASAI_CHUNK_OVERLAP", "150"))
 
 # Global RAG engine instance
 rag_engine: Optional[RAGEngineOllama] = None
+# Global agent instance
+task_agent: Optional[LocalTaskAgent] = None
 
 
 def detect_available_ollama_model():
@@ -88,7 +93,7 @@ def detect_available_ollama_model():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown."""
-    global rag_engine
+    global rag_engine, task_agent
     
     # Startup
     logger.info("Starting AtlasAI Runtime with Ollama...")
@@ -96,6 +101,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"OneNote runbook path: {ONENOTE_RUNBOOK_PATH}")
     logger.info(f"Ollama base URL: {OLLAMA_BASE_URL}")
     logger.info(f"Embedding model: {EMBEDDING_MODEL}")
+    logger.info(f"Agent enabled: {ENABLE_AGENT}")
     
     # Detect available Ollama model
     detected_model = detect_available_ollama_model()
@@ -119,6 +125,18 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to initialize RAG engine: {e}")
         # Don't fail startup - allow health checks to report the issue
+    
+    # Initialize agent if enabled
+    if ENABLE_AGENT:
+        try:
+            task_agent = LocalTaskAgent(
+                ollama_model=detected_model,
+                ollama_base_url=OLLAMA_BASE_URL
+            )
+            logger.info("Task agent initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize task agent: {e}")
+            # Don't fail startup
     
     yield
     
@@ -210,12 +228,27 @@ async def chat_completion(request: ChatRequest):
     Chat completion endpoint.
     
     Accepts a chat message and returns an answer with source references and detected intent.
+    Can also execute local tasks if agent is enabled.
     """
     if rag_engine is None:
         raise HTTPException(status_code=503, detail="RAG engine not initialized")
     
     try:
         logger.info(f"Processing chat request: {request.message[:100]}...")
+        
+        # Check if this is a task that should be handled by the agent
+        if ENABLE_AGENT and task_agent and task_agent.can_handle_task(request.message):
+            logger.info("Routing request to task agent")
+            task_result = task_agent.execute_task(request.message)
+            
+            return ChatResponse(
+                answer=task_result,
+                sources=[],
+                intent="task_execution",
+                intent_confidence=1.0
+            )
+        
+        # Otherwise, use RAG for document-based Q&A
         result = rag_engine.query(request.message, request.additional_documents)
         logger.info(f"Generated answer with {len(result['sources'])} sources")
         logger.info(f"Detected intent: {result.get('intent', 'unknown')} (confidence: {result.get('intent_confidence', 0):.2f})")
@@ -242,7 +275,12 @@ async def root():
     """Root endpoint - provides basic information."""
     return {
         "name": "AtlasAI Runtime",
-        "version": "0.1.0",
+        "version": "0.2.0",
+        "features": {
+            "rag": "Document-based Q&A with Ollama and Chroma",
+            "embeddings": "bge-base-en-v1.5",
+            "agent": "LangGraph-based local task execution" if ENABLE_AGENT else "Disabled"
+        },
         "endpoints": {
             "health": "/health",
             "chat": "/chat",
