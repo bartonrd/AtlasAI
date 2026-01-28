@@ -10,7 +10,7 @@ It uses pyOneNote for parsing and reportlab for PDF generation.
 import os
 import shutil
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Dict, Any
 from pathlib import Path
 
 # Set up logging
@@ -144,20 +144,24 @@ def convert_onenote_to_pdf(one_file_path: str, output_pdf_path: str, verbose: bo
         
         for line in content:
             if line.strip():
-                # Detect section headers (lines starting with = or -)
-                is_header = (line.strip().startswith('=') or 
-                            line.strip().startswith('-') or
-                            line.strip().startswith('TITLE:') or
-                            line.strip().startswith('CONTENT:'))
+                # Detect section headers (semantic headers like TITLE: or CONTENT:)
+                # Exclude decorative separators (lines starting with = or -)
+                is_semantic_header = (
+                    line.strip().startswith('TITLE:') or 
+                    line.strip().startswith('CONTENT:') or
+                    line.strip().startswith('Author:') or
+                    line.strip().startswith('Subject:')
+                )
+                is_separator = line.strip()[0] in ['=', '-'] if line.strip() else False
                 
                 # Escape special XML characters for ReportLab
                 line_escaped = line.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
                 
-                if is_header and not line.strip()[0] in ['=', '-']:
-                    # Use heading style for content headers
+                if is_semantic_header and not is_separator:
+                    # Use heading style for semantic headers
                     story.append(Paragraph(line_escaped, heading_style))
                 else:
-                    # Use normal style for content
+                    # Use normal style for content and separators
                     story.append(Paragraph(line_escaped, normal_style))
                     
                 story.append(Spacer(1, 0.1*inch))
@@ -481,7 +485,8 @@ def convert_onenote_directory(
     Args:
         source_dir: Directory containing .one files
         output_dir: Directory to save PDF files
-        overwrite: If True, overwrite existing PDFs (clears output dir first)
+        overwrite: If True, clear output directory first and overwrite all files.
+                   If False, keep existing files and skip conversion if PDF exists.
         verbose: If True, log detailed conversion information
         
     Returns:
@@ -498,13 +503,15 @@ def convert_onenote_directory(
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # If overwrite is True, clear the output directory
+    # If overwrite is True, clear the output directory first
     if overwrite and os.path.exists(output_dir):
         if verbose:
             logger.info(f"Clearing output directory: {output_dir}")
         try:
-            shutil.rmtree(output_dir)
-            os.makedirs(output_dir, exist_ok=True)
+            # Only clear if directory has content
+            if os.listdir(output_dir):
+                shutil.rmtree(output_dir)
+                os.makedirs(output_dir, exist_ok=True)
         except Exception as e:
             logger.error(f"Error clearing output directory: {e}")
             return 0
@@ -525,12 +532,13 @@ def convert_onenote_directory(
     
     logger.info(f"Found {len(one_files)} OneNote file(s) to convert")
     
-    # Use batch conversion
+    # Use batch conversion with skip_existing controlled by overwrite parameter
+    # When overwrite=False, skip existing files
     results = batch_convert_onenote_to_pdf(
         one_files,
         output_dir,
         verbose=verbose,
-        skip_existing=False  # overwrite controls this at directory level
+        skip_existing=not overwrite  # If overwrite=False, skip existing files
     )
     
     converted_count = sum(results.values())
