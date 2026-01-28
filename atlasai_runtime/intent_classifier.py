@@ -124,7 +124,7 @@ class IntentClassifier:
     
     def _keyword_based_classification(self, query: str) -> Tuple[str, float]:
         """
-        Fallback keyword-based classification.
+        Fallback keyword-based classification with context awareness.
         
         Args:
             query: User query
@@ -135,6 +135,18 @@ class IntentClassifier:
         query_lower = query.lower()
         scores = {}
         
+        # Special handling: If query contains error-related words but also concept-seeking words,
+        # prioritize concept_explanation for short queries (likely asking "what is this error?")
+        concept_indicators = ["what is", "what are", "explain", "define", "meaning"]
+        has_concept_indicator = any(ind in query_lower for ind in concept_indicators)
+        
+        # Very short queries with error words are likely asking for explanation, not troubleshooting
+        # e.g., "point not mapped", "fatal error: point not mapped"
+        is_short_error_query = (
+            len(query_lower.split()) <= 6 and 
+            any(err in query_lower for err in ["error", "failed", "failure", "not working", "broken"])
+        )
+        
         # Count keyword matches for each intent
         for intent, keywords in self.intent_keywords.items():
             score = sum(1 for kw in keywords if kw in query_lower)
@@ -144,6 +156,16 @@ class IntentClassifier:
         if not scores:
             # Default to concept_explanation for technical queries
             return "concept_explanation", 0.5
+        
+        # Apply context-aware adjustments
+        if has_concept_indicator and "concept_explanation" in scores:
+            # Strong signal for concept explanation - boost its score
+            scores["concept_explanation"] *= 2
+        
+        if is_short_error_query and "concept_explanation" not in scores:
+            # Short error queries without concept keywords - likely asking what the error means
+            # Add concept_explanation as viable option with moderate score
+            scores["concept_explanation"] = 1.5
         
         # Return intent with highest score
         max_intent = max(scores.items(), key=lambda x: x[1])

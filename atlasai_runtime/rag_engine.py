@@ -256,18 +256,19 @@ class RAGEngine:
             PromptTemplate configured for the intent
         """
         if intent == "error_log_resolution":
-            template = """You are a technical support assistant specializing in troubleshooting.
+            template = """You are a technical support assistant specializing in troubleshooting electrical grid systems.
 
-The user is experiencing an error or issue. Using the retrieved context, help them resolve it.
+The user has encountered an error or issue. Using the retrieved context, help them understand and resolve it.
 
 Rules:
-- Focus on identifying the root cause and providing solutions
-- If context contains error codes or error messages, explain them
-- Provide step-by-step troubleshooting steps
-- If the context doesn't contain relevant error information, acknowledge this and provide general guidance
-- FORMAT your answer as 3–7 Markdown bullet points
+- FIRST explain what the error means and why it occurs
+- Then provide step-by-step troubleshooting and resolution steps
+- If context contains error codes or error messages, explain them in detail
+- Include relevant technical details, examples, and notes from the context
+- Be comprehensive - electrical grid reliability is critical
+- FORMAT your answer as 5–10 Markdown bullet points
 - Each bullet MUST start with "- " and be followed by a newline
-- Keep each bullet to 1-2 sentences focused on actionable solutions
+- Include both explanation and actionable solutions
 
 Question:
 {question}
@@ -275,7 +276,7 @@ Question:
 Context:
 {context}
 
-Answer (troubleshooting steps as markdown bullets):
+Answer (comprehensive error explanation and troubleshooting as markdown bullets):
 """
         elif intent == "how_to":
             template = """You are a helpful technical guide providing step-by-step instructions.
@@ -321,19 +322,20 @@ Context (may not be relevant for casual conversation):
 Answer (brief, friendly response as markdown bullets):
 """
         elif intent == "concept_explanation":
-            template = """You are a technical expert providing clear explanations of concepts.
+            template = """You are a technical expert providing clear explanations of electrical grid systems and error conditions.
 
-The user wants to understand a concept or technical detail. Using the retrieved context, explain it clearly.
+The user wants to understand a concept, technical detail, or error. Using the retrieved context, explain it comprehensively.
 
 Rules:
 - Define key terms and concepts clearly
-- Provide context about why it's important
-- Include relevant technical details from the context
-- Use examples if available in the context
-- If context is limited, explain what you can and note what's not covered
-- FORMAT your answer as 3–7 Markdown bullet points
+- Explain the cause and significance of the issue
+- Provide context about why it's important for grid reliability
+- Include relevant technical details, examples, and notes from the context
+- If this is an error or issue, explain what causes it and its implications
+- Be thorough - electrical grid reliability is critical
+- FORMAT your answer as 5–10 Markdown bullet points
 - Each bullet MUST start with "- " and be followed by a newline
-- Build explanation progressively from basic to more detailed
+- Build explanation progressively from basic to detailed
 
 Question:
 {question}
@@ -341,7 +343,7 @@ Question:
 Context:
 {context}
 
-Answer (concept explanation as markdown bullets):
+Answer (comprehensive concept explanation as markdown bullets):
 """
         else:
             # Use default template
@@ -440,6 +442,41 @@ Answer (markdown bullets only):
 
         return qa
 
+    def _expand_query(self, query: str, intent: str) -> str:
+        """
+        Expand short queries to improve retrieval for electrical grid context.
+        
+        Args:
+            query: Original user query
+            intent: Detected intent
+            
+        Returns:
+            Expanded query string
+        """
+        query_lower = query.lower()
+        
+        # For very short queries, add context to improve retrieval
+        if len(query.split()) <= 4:
+            # Add intent-specific expansions
+            if intent == "concept_explanation" or intent == "error_log_resolution":
+                # Add common electrical grid context words
+                expansions = []
+                
+                if "error" in query_lower or "fail" in query_lower:
+                    expansions.append("error message")
+                    expansions.append("troubleshoot")
+                    
+                if "point" in query_lower and "map" in query_lower:
+                    expansions.append("measurement point")
+                    expansions.append("device mapping")
+                    expansions.append("station")
+                    
+                if expansions:
+                    # Return original query + expanded terms for better matching
+                    return f"{query} {' '.join(expansions)}"
+        
+        return query
+
     def query(self, question: str, additional_documents: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         Query the RAG system with a question.
@@ -477,8 +514,13 @@ Answer (markdown bullets only):
         
         qa_chain = self._intent_qa_chains[cache_key]
 
-        # Run the chain
-        result = qa_chain.invoke({"query": question})
+        # Expand short queries for better retrieval
+        expanded_question = self._expand_query(question, detected_intent)
+        if expanded_question != question:
+            logger.info(f"Expanded query: {question} -> {expanded_question}")
+
+        # Run the chain with expanded query
+        result = qa_chain.invoke({"query": expanded_question})
         answer = result.get("result", "")
         sources = result.get("source_documents", [])
 
