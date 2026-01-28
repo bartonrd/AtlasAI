@@ -12,6 +12,15 @@ from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 # OneNote converter
 from .onenote_converter import convert_onenote_directory
 
+# Intent classifier
+from .intent_classifier import (
+    create_intent_classifier,
+    INTENT_ERROR_LOG,
+    INTENT_HOW_TO,
+    INTENT_CHIT_CHAT,
+    INTENT_CONCEPT_EXPLANATION,
+)
+
 # Splitter (v1 package)
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -50,6 +59,7 @@ class RAGEngine:
         top_k: int = 4,
         chunk_size: int = 800,
         chunk_overlap: int = 150,
+        use_intent_classifier: bool = True,
     ):
         """
         Initialize the RAG engine.
@@ -62,6 +72,7 @@ class RAGEngine:
             top_k: Number of chunks to retrieve
             chunk_size: Size of text chunks
             chunk_overlap: Overlap between chunks
+            use_intent_classifier: Whether to use intent classification for better responses
         """
         self.documents_dir = documents_dir
         self.onenote_runbook_path = onenote_runbook_path
@@ -75,6 +86,19 @@ class RAGEngine:
         self._embeddings = None
         self._llm = None
         self._qa_chain = None
+        self._intent_classifier = None
+        self.use_intent_classifier = use_intent_classifier
+        
+        # Initialize intent classifier if enabled
+        if use_intent_classifier:
+            try:
+                print("Initializing intent classifier...")
+                self._intent_classifier = create_intent_classifier(use_model=True)
+                print("Intent classifier initialized successfully")
+            except Exception as e:
+                print(f"Warning: Failed to initialize intent classifier: {e}")
+                print("Falling back to basic heuristic classification")
+                self._intent_classifier = create_intent_classifier(use_model=False)
         
         # Convert OneNote files to PDF on initialization
         self._convert_onenote_runbook()
@@ -230,12 +254,135 @@ class RAGEngine:
             self._llm = HuggingFacePipeline(pipeline=gen_pipe)
         return self._llm
 
-    def _create_qa_chain(self, additional_paths: Optional[List[str]] = None) -> RetrievalQA:
+    def _get_prompt_for_intent(self, intent: str) -> PromptTemplate:
+        """
+        Get the appropriate prompt template based on detected intent.
+        
+        Args:
+            intent: The detected intent type
+            
+        Returns:
+            PromptTemplate configured for the intent
+        """
+        if intent == INTENT_ERROR_LOG:
+            # Prompt optimized for error resolution
+            template = """You are a technical troubleshooting assistant specializing in error resolution.
+
+Rules:
+- Focus on identifying the root cause of errors from the context
+- Provide step-by-step troubleshooting guidance
+- Include specific error codes, messages, or symptoms if mentioned
+- If the error isn't covered in the context, provide general troubleshooting advice
+- FORMAT your answer as 3–7 clear, actionable Markdown bullet points
+- Each bullet MUST start with "- " and be followed by a newline
+- Keep each bullet focused and actionable
+
+Question (Error/Issue):
+{question}
+
+Context (Documentation):
+{context}
+
+Troubleshooting Steps (markdown bullets only):
+"""
+        elif intent == INTENT_HOW_TO:
+            # Prompt optimized for procedural instructions
+            template = """You are a step-by-step instruction guide for technical tasks.
+
+Rules:
+- Provide clear, sequential steps from the context
+- Number steps when appropriate for clarity
+- Include prerequisites or requirements if mentioned
+- If the procedure isn't in the context, provide general guidance
+- Be specific about actions to take
+- FORMAT your answer as 3–7 clear Markdown bullet points
+- Each bullet MUST start with "- " and be followed by a newline
+- Each bullet should be a distinct step or action
+
+Question (How-To):
+{question}
+
+Context (Documentation):
+{context}
+
+Steps (markdown bullets only):
+"""
+        elif intent == INTENT_CHIT_CHAT:
+            # Prompt optimized for conversational responses
+            template = """You are a friendly, conversational assistant.
+
+Rules:
+- Respond naturally and concisely to greetings or casual conversation
+- Keep the tone warm and professional
+- If it's a greeting, respond appropriately
+- If it's thanks, acknowledge politely
+- If it's a casual question, answer briefly
+- Context may not be relevant for casual chat, use your judgment
+- Keep responses SHORT - 1 to 3 sentences maximum
+- No bullet points needed for casual chat
+
+User Message:
+{question}
+
+Context (may not be relevant):
+{context}
+
+Response (conversational, brief):
+"""
+        elif intent == INTENT_CONCEPT_EXPLANATION:
+            # Prompt optimized for explaining concepts
+            template = """You are an educational assistant explaining technical concepts clearly.
+
+Rules:
+- Define the concept using information from the context
+- Explain the purpose, function, or importance
+- Use clear, accessible language
+- Provide examples if available in the context
+- If the concept isn't in the context, provide a general explanation
+- FORMAT your answer as 3–7 informative Markdown bullet points
+- Each bullet MUST start with "- " and be followed by a newline
+- Build from basic to more detailed information
+
+Question (Concept):
+{question}
+
+Context (Documentation):
+{context}
+
+Explanation (markdown bullets only):
+"""
+        else:
+            # Default prompt (same as original)
+            template = """You are a concise, helpful assistant for a RAG system.
+
+Rules:
+- If the question is unrelated to the context, reply briefly to the user without using the context.
+- Otherwise, answer using ONLY the retrieved context.
+- FORMAT your final answer as 3–7 Markdown bullet points.
+- Each bullet MUST start with "- " and be followed by a newline.
+- Keep each bullet to one sentence. No preface, no closing remarks—bullets only.
+
+Question:
+{question}
+
+Context:
+{context}
+
+Answer (markdown bullets only):
+"""
+        
+        return PromptTemplate(
+            input_variables=["question", "context"],
+            template=template,
+        )
+
+    def _create_qa_chain(self, additional_paths: Optional[List[str]] = None, intent: Optional[str] = None) -> RetrievalQA:
         """
         Create or recreate the QA chain with current settings.
 
         Args:
             additional_paths: Additional document paths to include
+            intent: Optional intent type to customize the prompt
 
         Returns:
             RetrievalQA chain
@@ -262,8 +409,12 @@ class RAGEngine:
         # Get LLM
         llm = self._get_llm()
 
-        # Create prompt
-        template = """You are a concise, helpful assistant for a RAG system.
+        # Get prompt based on intent
+        if intent:
+            qa_prompt = self._get_prompt_for_intent(intent)
+        else:
+            # Use default prompt
+            template = """You are a concise, helpful assistant for a RAG system.
 
 Rules:
 - If the question is unrelated to the context, reply briefly to the user without using the context.
@@ -280,10 +431,10 @@ Context:
 
 Answer (markdown bullets only):
 """
-        qa_prompt = PromptTemplate(
-            input_variables=["question", "context"],
-            template=template,
-        )
+            qa_prompt = PromptTemplate(
+                input_variables=["question", "context"],
+                template=template,
+            )
 
         # Create QA chain
         qa = RetrievalQA.from_chain_type(
@@ -305,13 +456,37 @@ Answer (markdown bullets only):
             additional_documents: Optional additional document paths
 
         Returns:
-            Dictionary with 'answer' and 'sources' keys
+            Dictionary with 'answer', 'sources', 'intent', and 'intent_confidence' keys
         """
+        # Classify intent if enabled
+        intent = None
+        intent_confidence = 0.0
+        
+        if self.use_intent_classifier and self._intent_classifier:
+            try:
+                intent, intent_confidence = self._intent_classifier.classify(question)
+                print(f"Detected intent: {intent} (confidence: {intent_confidence:.2f})")
+            except Exception as e:
+                print(f"Warning: Intent classification failed: {e}")
+                intent = None
+        
+        # For chit-chat with high confidence, we can provide a quick response without heavy RAG
+        if intent == INTENT_CHIT_CHAT and intent_confidence > 0.7:
+            # Handle simple chit-chat without full RAG processing
+            formatted_answer = self._handle_chit_chat(question)
+            return {
+                "answer": formatted_answer,
+                "sources": [],
+                "intent": intent,
+                "intent_confidence": intent_confidence,
+            }
+        
         # Use existing QA chain, or recreate if additional documents are provided or if chain not initialized
-        if additional_documents or self._qa_chain is None:
-            qa_chain = self._create_qa_chain(additional_documents)
-            # Cache the chain if it wasn't initialized before
-            if self._qa_chain is None:
+        # For intent-based queries, we create a new chain with the appropriate prompt
+        if additional_documents or self._qa_chain is None or (intent and self.use_intent_classifier):
+            qa_chain = self._create_qa_chain(additional_documents, intent=intent)
+            # Only cache the chain if it wasn't initialized before and no intent-specific prompt
+            if self._qa_chain is None and not intent:
                 self._qa_chain = qa_chain
         else:
             qa_chain = self._qa_chain
@@ -321,8 +496,13 @@ Answer (markdown bullets only):
         answer = result.get("result", "")
         sources = result.get("source_documents", [])
 
-        # Format answer as bullets
-        formatted_answer = self._to_bullets(answer)
+        # Format answer appropriately based on intent
+        if intent == INTENT_CHIT_CHAT:
+            # For chit-chat, don't force bullets
+            formatted_answer = answer.strip()
+        else:
+            # For other intents, format as bullets
+            formatted_answer = self._to_bullets(answer)
 
         # Extract source information
         source_list = []
@@ -344,7 +524,44 @@ Answer (markdown bullets only):
         return {
             "answer": formatted_answer,
             "sources": source_list,
+            "intent": intent or "unknown",
+            "intent_confidence": intent_confidence,
         }
+
+    def _handle_chit_chat(self, message: str) -> str:
+        """
+        Handle simple chit-chat messages without full RAG processing.
+        
+        Args:
+            message: The user's message
+            
+        Returns:
+            A friendly response
+        """
+        message_lower = message.lower().strip()
+        
+        # Greetings
+        if any(word in message_lower for word in ["hello", "hi", "hey", "greetings"]):
+            return "Hello! I'm AtlasAI, your technical documentation assistant. How can I help you today?"
+        
+        # Thanks
+        if any(word in message_lower for word in ["thanks", "thank you"]):
+            return "You're welcome! Feel free to ask if you have any other questions."
+        
+        # Goodbye
+        if any(word in message_lower for word in ["bye", "goodbye"]):
+            return "Goodbye! Have a great day!"
+        
+        # How are you
+        if "how are you" in message_lower:
+            return "I'm functioning well, thank you! I'm here to help you with technical documentation and questions."
+        
+        # What's up
+        if "what's up" in message_lower or "whats up" in message_lower:
+            return "I'm here and ready to help! Do you have any questions about your documentation?"
+        
+        # Default friendly response
+        return "I'm AtlasAI, here to help you with technical documentation. Feel free to ask me anything!"
 
     @staticmethod
     def _strip_boilerplate(text: str) -> str:
