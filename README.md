@@ -1,24 +1,26 @@
 # AtlasAI
 
-A Retrieval-Augmented Generation (RAG) chatbot for querying technical documentation using local language models.
+A Retrieval-Augmented Generation (RAG) chatbot for querying technical documentation using **fully local AI models** with **Ollama** and **ChromaDB**.
 
 ## Overview
 
-AtlasAI is a C# application that communicates with a Python-based RAG runtime service over localhost. The system uses local Hugging Face models to answer questions about technical documents stored in the `documents` folder, with no external dependencies required.
+AtlasAI is a C# application that manages a Python-based RAG runtime service. The system uses **Ollama** for local LLM inference, **ChromaDB** for vector storage, and supports executing local tasks on your machine. All processing happens locally with no external API dependencies.
 
 ## Architecture
 
-The application consists of two main components:
+The application uses a modern local AI stack:
 
-1. **C# Host Application** - Product host that:
-   - Starts and manages the Python runtime as a child process
-   - Provides an interactive console interface for chat
-   - Communicates with the Python runtime over HTTP (localhost)
+**Technology Stack:**
+- 🤖 **Model Runtime**: Ollama (CPU/GPU, cross-platform)
+- 🧠 **LLM Models**: Llama 3.1 8B Instruct (instruction-tuned, local)
+- 📊 **Embeddings**: mxbai-embed-large (via Ollama)
+- 🗄️ **Vector Store**: ChromaDB (zero-config, persistent)
+- 🔄 **Orchestration**: LangGraph-ready architecture
+- 🌐 **Backend**: FastAPI (Python)
+- 💻 **Host**: C# console application
+- 🎨 **UI**: Streamlit (optional web interface)
 
-2. **Python Runtime Service** - FastAPI-based service that:
-   - Exposes REST endpoints for health checks and chat completion
-   - Handles document loading, embedding, and retrieval
-   - Runs the local LLM for answer generation
+**System Components:**
 
 ```
 ┌─────────────────┐         HTTP          ┌──────────────────┐
@@ -26,21 +28,23 @@ The application consists of two main components:
 │  (AtlasAI.exe)  │  localhost:8000       │   (FastAPI)      │
 └─────────────────┘                       └──────────────────┘
         │                                          │
-        │ Manages process lifecycle                │ RAG Engine
-        │ (start/stop/monitor)                     │ (LangChain)
+        │ • Auto-installs requirements             │ • RAG Engine (Ollama)
+        │ • Manages process lifecycle              │ • ChromaDB vector store
+        │ • Interactive console                    │ • Task executor
+                                                   │ • OneNote/PDF loaders
 ```
 
 ## Features
 
-- **Local LLM Processing**: Uses offline Hugging Face models (FLAN-T5) for text generation
-- **Intelligent Intent Classification**: Automatically detects query intent (error resolution, how-to, chit-chat, concept explanation) and tailors responses accordingly
-- **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
-- **Intent-Specific Prompts**: Custom prompt templates for each intent type deliver more accurate and helpful responses
-- **OneNote Conversion**: Automatically converts .one files to PDF on startup for better text extraction
-- **HTTP API**: Clean boundary between C# host and Python runtime
-- **Offline-First**: No required external SaaS dependencies (intent classification works with keyword-based fallback)
-- **Interactive Console**: Simple chat interface in the C# application
-- **Process Management**: C# host automatically starts/stops the Python runtime
+- 🏠 **Fully Local**: All AI processing happens on your machine using Ollama
+- 📚 **RAG System**: Retrieves relevant context from PDF/DOCX documents before answering
+- 🧠 **Intelligent Intent Classification**: Automatically detects query intent and tailors responses
+- 📝 **OneNote Support**: Automatically converts .one files to PDF for processing
+- 🔧 **Local Task Execution**: Execute system commands and tasks on your machine
+- ⚡ **Auto-Setup**: Automatically installs Python requirements on first run
+- 🎯 **Zero External APIs**: No cloud dependencies or API keys needed
+- 💾 **Persistent Vector Store**: ChromaDB stores embeddings for fast retrieval
+- 🌐 **REST API**: Clean FastAPI interface with automatic documentation
 
 ## Prerequisites
 
@@ -52,42 +56,38 @@ The application consists of two main components:
 - Python 3.9 or later
 - Ensure Python is in your system PATH
 
-### 3. Python Dependencies
-Install the required Python packages:
+### 3. Ollama
+**AtlasAI requires Ollama to be installed and running.**
 
+Install Ollama:
+- **Windows**: Download from [ollama.ai/download/windows](https://ollama.ai/download/windows)
+- **macOS**: `brew install ollama` or download from [ollama.ai/download/mac](https://ollama.ai/download/mac)
+- **Linux**: `curl -fsSL https://ollama.ai/install.sh | sh`
+
+After installation, start the Ollama service:
 ```bash
-pip install -r requirements.txt
+ollama serve
 ```
 
-### 4. Hugging Face Models
+Pull the default model (will be done automatically on first run):
+```bash
+ollama pull llama3.1:8b
+ollama pull mxbai-embed-large
+```
 
-**Note**: Models are required for actual chat functionality. The runtime service will start and respond to `/health` checks without models, but `/chat` requests will fail.
+### 4. Python Dependencies
+**Python dependencies are automatically installed when you run the C# application.**
 
-Download the following models to your local machine:
+The setup script will install:
+- FastAPI and Uvicorn (web framework)
+- Ollama Python client
+- ChromaDB (vector database)
+- LangChain components
+- Document loaders (PDF, DOCX, OneNote)
 
-- **Embedding Model**: `sentence-transformers/all-MiniLM-L6-v2`
-- **Text Generation Model**: `google/flan-t5-base` (or `google/flan-t5-small` for faster CPU runs)
-
-Update the model paths via environment variables (see Configuration section) or use the defaults in the code:
-
-- Default embedding model path: `C:\models\all-MiniLM-L6-v2`
-- Default text generation model path: `C:\models\flan-t5-base`
-
-You can download models using Python:
-
-```python
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
-from sentence_transformers import SentenceTransformer
-
-# Download and save embedding model
-model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-model.save(r'C:\models\all-MiniLM-L6-v2')
-
-# Download and save text generation model
-tokenizer = AutoTokenizer.from_pretrained('google/flan-t5-base')
-model = AutoModelForSeq2SeqLM.from_pretrained('google/flan-t5-base')
-tokenizer.save_pretrained(r'C:\models\flan-t5-base')
-model.save_pretrained(r'C:\models\flan-t5-base')
+You can also manually install dependencies:
+```bash
+pip install -r requirements.txt
 ```
 
 ## Project Structure
@@ -97,7 +97,24 @@ AtlasAI/
 ├── AtlasAI/                     # C# console application
 │   ├── Program.cs               # Main entry point
 │   ├── AppConfiguration.cs      # Configuration management
-│   ├── PythonRuntimeManager.cs  # Python process lifecycle
+│   ├── PythonRuntimeManager.cs  # Python process lifecycle (with auto-setup)
+│   ├── RuntimeClient.cs         # HTTP client for runtime API
+│   └── AtlasAI.csproj           # C# project file
+├── atlasai_runtime/             # Python runtime service
+│   ├── __init__.py              # Package initialization
+│   ├── __main__.py              # Entry point for runtime
+│   ├── app.py                   # FastAPI application
+│   ├── rag_engine.py            # RAG logic (Ollama + ChromaDB)
+│   ├── task_executor.py         # Local task execution
+│   ├── intent_classifier.py     # Intent detection
+│   └── onenote_converter.py     # OneNote to PDF conversion
+├── documents/                   # PDF/DOCX files for RAG corpus
+├── chroma_db/                   # ChromaDB persistent storage (auto-created)
+├── setup_env.py                 # Environment setup script (auto-run by C#)
+├── requirements.txt             # Python dependencies
+├── streamlit_ui.py              # Optional Streamlit web UI
+└── README.md                    # This file
+```
 │   ├── RuntimeClient.cs         # HTTP client for runtime API
 │   └── AtlasAI.csproj           # C# project file
 ├── atlasai_runtime/             # Python runtime service
@@ -117,32 +134,56 @@ AtlasAI/
 
 ## Building and Running
 
-### Option 1: Run through C# Host (Recommended)
+### Quick Start (Recommended)
 
-This is the recommended way to use AtlasAI. The C# host will automatically start the Python runtime.
+The C# application handles everything automatically:
 
-1. **Install Python dependencies** (required before first run):
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-2. Build the C# application:
+1. **Build the C# application:**
    ```bash
    cd AtlasAI
    dotnet build
    ```
 
-3. Run the application:
+2. **Run the application:**
    ```bash
    dotnet run
    ```
 
-The C# application will:
-- Start the Python runtime service on localhost:8000
-- Wait for the runtime to be healthy
-- Provide an interactive chat interface in the console
-- **Type 'ui' to launch the Streamlit UI** for a graphical web interface
-- Automatically shut down the runtime when you exit
+   On first run, the application will:
+   - ✓ Check Python version
+   - ✓ Install all required Python packages automatically
+   - ✓ Check if Ollama is installed and running
+   - ✓ Pull the default Llama 3.1 8B model (if needed)
+   - ✓ Initialize ChromaDB vector store
+   - ✓ Convert OneNote files to PDF
+   - ✓ Start the FastAPI runtime service
+   - ✓ Provide an interactive chat interface
+
+3. **Start chatting!**
+   - Type your questions at the `You:` prompt
+   - View the assistant's answer with source citations
+   - Type `ui` to launch the Streamlit web interface
+   - Type `exit` or press Ctrl+C to quit
+
+### Manual Setup (Optional)
+
+If you prefer to set up manually:
+
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
+
+# Install and start Ollama
+ollama serve
+
+# Pull models
+ollama pull llama3.1:8b
+ollama pull mxbai-embed-large
+
+# Run the C# application
+cd AtlasAI
+dotnet run
+```
 
 #### Using the Streamlit UI
 
@@ -201,67 +242,104 @@ streamlit run chatapp.py
 
 ## Configuration
 
-### C# Host Configuration
+### Environment Variables
 
-Configure the C# host using environment variables:
+Configure AtlasAI using environment variables:
 
+**C# Host Configuration:**
 - `ATLASAI_PYTHON_PATH` - Path to Python executable (default: `python`)
 - `ATLASAI_RUNTIME_HOST` - Runtime host (default: `127.0.0.1`)
 - `ATLASAI_RUNTIME_PORT` - Runtime port (default: `8000`)
 
-Example:
-```bash
-# Windows (PowerShell)
-$env:ATLASAI_PYTHON_PATH="C:\Python39\python.exe"
-$env:ATLASAI_RUNTIME_PORT="9000"
-dotnet run
-
-# Unix/Linux/macOS
-export ATLASAI_PYTHON_PATH="/usr/bin/python3"
-export ATLASAI_RUNTIME_PORT="9000"
-dotnet run
-```
-
-### Python Runtime Configuration
-
-Configure the Python runtime using environment variables:
-
+**Python Runtime Configuration:**
 - `ATLASAI_DOCUMENTS_DIR` - Path to documents folder (default: `./documents`)
-- `ATLASAI_ONENOTE_RUNBOOK_PATH` - Path to OneNote runbook directory (default: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`)
-- `ATLASAI_EMBEDDING_MODEL` - Path to embedding model (default: `C:\models\all-MiniLM-L6-v2`)
-- `ATLASAI_TEXT_GEN_MODEL` - Path to text generation model (default: `C:\models\flan-t5-base`)
-- `ATLASAI_TOP_K` - Number of document chunks to retrieve (default: `4`)
+- `ATLASAI_ONENOTE_RUNBOOK_PATH` - Path to OneNote runbook directory
+- `ATLASAI_OLLAMA_MODEL` - Ollama model name (default: `llama3.1:8b`)
+- `ATLASAI_EMBEDDING_MODEL` - Embedding model (default: `mxbai-embed-large`)
+- `ATLASAI_CHROMA_PERSIST_DIR` - ChromaDB storage path (default: `./chroma_db`)
+- `ATLASAI_TOP_K` - Number of document chunks to retrieve (default: `6`)
 - `ATLASAI_CHUNK_SIZE` - Size of text chunks (default: `800`)
 - `ATLASAI_CHUNK_OVERLAP` - Overlap between chunks (default: `150`)
 
-Example:
+**Example:**
 ```bash
 # Windows (PowerShell)
-$env:ATLASAI_EMBEDDING_MODEL="D:\models\embeddings"
-$env:ATLASAI_TEXT_GEN_MODEL="D:\models\flan-t5-small"
-$env:ATLASAI_ONENOTE_RUNBOOK_PATH="\\server\path\to\runbook"
-python -m atlasai_runtime
+$env:ATLASAI_OLLAMA_MODEL="mistral:7b"
+$env:ATLASAI_TOP_K="10"
+dotnet run
 
 # Unix/Linux/macOS
-export ATLASAI_EMBEDDING_MODEL="/home/user/models/embeddings"
-export ATLASAI_TEXT_GEN_MODEL="/home/user/models/flan-t5-small"
-export ATLASAI_ONENOTE_RUNBOOK_PATH="/mnt/network/path/to/runbook"
-python -m atlasai_runtime
+export ATLASAI_OLLAMA_MODEL="mistral:7b"
+export ATLASAI_TOP_K="10"
+dotnet run
+```
+
+### Using Different Ollama Models
+
+AtlasAI supports any Ollama model. Recommended options:
+
+**8-14B models (best quality/speed balance):**
+- `llama3.1:8b` (default) - Meta's Llama 3.1, instruction-tuned
+- `qwen2.5:7b` - Alibaba's Qwen 2.5, excellent for technical content
+- `mistral:7b` - Mistral AI's flagship model
+
+**Smaller models (faster on CPU):**
+- `llama3.1:3b` - Faster Llama variant
+- `phi3:mini` - Microsoft's compact model
+
+**Larger models (better quality, needs GPU):**
+- `llama3.1:13b` - Larger Llama variant
+- `qwen2.5:14b` - Larger Qwen variant
+
+To use a different model:
+```bash
+ollama pull qwen2.5:7b
+export ATLASAI_OLLAMA_MODEL="qwen2.5:7b"
+dotnet run
 ```
 
 ## Usage
 
-### Using the C# Console Interface
+### Interactive Console Chat
 
 1. Start the application with `dotnet run`
 2. Wait for the runtime to be ready (you'll see "AtlasAI is ready!")
 3. Type your questions at the `You:` prompt
-4. View the assistant's answer and source citations
-5. Type `exit` or `quit` to stop, or press Ctrl+C
+4. View the assistant's answer with intent detection and source citations
+5. Type `ui` to launch the Streamlit web interface
+6. Type `exit` or `quit` to stop, or press Ctrl+C
 
-### Using the Python Runtime API
+**Intent Detection:**
+AtlasAI automatically detects your query intent and provides tailored responses:
+- 🔧 **Error Resolution**: Troubleshooting and fixing issues
+- 📝 **How-To**: Step-by-step instructions
+- 💬 **Chit-Chat**: Casual conversation
+- 📚 **Concept Explanation**: Technical details and definitions
 
-When running the Python runtime standalone, you can interact with it via HTTP:
+### Local Task Execution
+
+AtlasAI can execute system commands on your machine via the REST API:
+
+**Get System Information:**
+```bash
+curl http://localhost:8000/task/system-info
+```
+
+**Execute a Command:**
+```bash
+curl -X POST http://localhost:8000/task/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "command": "python --version",
+    "timeout": 30
+  }'
+```
+
+**Security Note:** For safety, only whitelisted commands are allowed. The default whitelist includes common developer tools (python, git, npm, etc.). Dangerous commands like `rm -rf` require explicit permission.
+
+### REST API Usage
+
+When running the Python runtime, you can interact via HTTP:
 
 **Health Check:**
 ```bash
@@ -272,12 +350,41 @@ curl http://localhost:8000/health
 ```bash
 curl -X POST http://localhost:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"message": "What is ADMS?"}'
+  -d '{
+    "message": "How do I configure the database?",
+    "additional_documents": []
+  }'
+```
+
+**Response Format:**
+```json
+{
+  "answer": "- Step 1: Configure connection string\n- Step 2: Run migrations\n- Step 3: Verify connection",
+  "sources": [
+    {"index": 1, "source": "database_guide.pdf", "page": "5"},
+    {"index": 2, "source": "config_manual.pdf", "page": "12"}
+  ],
+  "intent": "how_to",
+  "intent_confidence": 0.87
+}
 ```
 
 **Interactive API Documentation:**
+Open `http://localhost:8000/docs` in your browser for full Swagger UI documentation.
 
-Open `http://localhost:8000/docs` in your browser to access the interactive FastAPI documentation (Swagger UI).
+### Streamlit Web UI
+
+Launch the web interface by typing `ui` in the console, or run standalone:
+
+```bash
+streamlit run streamlit_ui.py
+```
+
+The UI provides:
+- Multiple chat sessions with history
+- Graphical interface with source citations
+- Document-based Q&A in a user-friendly format
+- Real-time intent detection display
 
 ## Intent Classification
 
@@ -309,116 +416,90 @@ The system uses zero-shot classification when available, with automatic fallback
 
 ## Adding Documents
 
-Place PDF or DOCX files in the `documents/` folder. The runtime will automatically load them when processing queries.
+Place PDF or DOCX files in the `documents/` folder. The runtime will automatically load and index them on startup or first query.
+
+**Supported Formats:**
+- PDF (`.pdf`) - Automatically extracted text content
+- Word Documents (`.docx`) - Full text extraction
+- OneNote (`.one`) - Converted to PDF automatically (see below)
 
 ### OneNote Document Support
 
-AtlasAI provides a **pure Python solution** for converting OneNote (.one) files to PDF format **without requiring Windows COM automation or OneNote installation**. This makes it cross-platform compatible and fully automated.
-
-**Non-Destructive Conversion:**
-- The system now uses **non-destructive mode** by default
-- Creates local copies of OneNote files before processing
-- Original .one files remain completely untouched
-- Local copies are stored in `documents/onenote_copies/`
-- All conversion processing happens on the local copies
+AtlasAI provides **pure Python** OneNote to PDF conversion **without requiring Windows COM or OneNote installation**. This makes it cross-platform compatible.
 
 **How it works:**
-- On startup, the application scans the configured OneNote runbook path for .one files
-- Local copies are created in the `documents/onenote_copies/` directory
-- All .one files are converted to PDF format using the built-in Python converter
-- Converted PDFs are saved in the `documents/runbook/` folder
-- The PDFs are automatically loaded into the RAG context
-- The runbook folder is cleared and regenerated on each startup to ensure fresh conversions
+- On startup, scans the configured OneNote runbook path for `.one` files
+- Creates local copies in `documents/onenote_copies/` (non-destructive)
+- Converts all `.one` files to PDF using Python libraries
+- Saves PDFs in `documents/runbook/` for indexing
+- Original files remain completely untouched
 
-**Pure Python Conversion (No OneNote Required):**
-The conversion uses:
-- `pyOneNote` library to parse the OneNote file structure
-- `reportlab` library to generate searchable PDF documents
-- Works on Windows, Linux, and macOS
-- No COM automation or OneNote installation needed
+**Configuration:**
+Set the OneNote directory path:
+```bash
+export ATLASAI_ONENOTE_RUNBOOK_PATH="/path/to/onenote/files"
+```
 
-**Known Limitations:**
-- Special characters may not render perfectly (pyOneNote limitation)
-- Screenshots/images are not extracted (pyOneNote limitation)
-- Complex formatting may not be preserved
-- Text content, metadata, and structure are extracted for RAG processing
-
-**Manual Conversion Options:**
-
-You can also convert OneNote files manually using the provided script:
-
+**Manual Conversion:**
 ```bash
 # Convert a single file
 python convert_onenote.py input.one output.pdf
 
-# Convert an entire directory (standard mode)
-python convert_onenote.py input_dir/ output_dir/ --directory
-
-# Non-destructive conversion (creates local copies first)
+# Convert an entire directory
 python convert_onenote.py input_dir/ output_dir/ --directory --use-local-copies
-
-# Convert with verbose logging
-python convert_onenote.py input.one output.pdf --verbose
-
-# Show conversion capabilities
-python convert_onenote.py --info
 ```
 
-**Programmatic Usage:**
-
-```python
-from atlasai_runtime.onenote_converter import (
-    convert_onenote_to_pdf,
-    batch_convert_onenote_to_pdf,
-    convert_onenote_directory,
-    copy_onenote_files_locally
-)
-
-# Convert single file
-convert_onenote_to_pdf("notes.one", "notes.pdf", verbose=True)
-
-# Batch convert multiple files
-files = ["notes1.one", "notes2.one", "notes3.one"]
-results = batch_convert_onenote_to_pdf(files, "output_dir/")
-
-# Convert entire directory (non-destructive mode)
-count = convert_onenote_directory(
-    "onenote_files/", 
-    "pdf_output/",
-    use_local_copies=True,
-    local_copy_dir="local_copies/"
-)
-
-# Create local copies only
-copy_mapping = copy_onenote_files_locally(files, "local_copies/")
-```
-
-**Configuration:**
-- Set `ATLASAI_ONENOTE_RUNBOOK_PATH` environment variable to point to your OneNote files directory
-- Default path: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`
-
-**Safety**: The non-destructive mode ensures your original OneNote files are never modified or damaged during conversion. All processing happens on local copies stored in the documents folder.
+**Known Limitations:**
+- Special characters may not render perfectly
+- Screenshots/images are not extracted
+- Complex formatting may not be preserved
+- Text content and structure are fully extracted
 
 ## Troubleshooting
 
-### "Python runtime failed to start"
-- Ensure Python is installed and in your PATH
-- Verify Python packages are installed: `pip install -r requirements.txt`
-- Check that ML models are downloaded to the configured paths
+### "Ollama not found" or "Ollama service not running"
+- Install Ollama from [ollama.ai](https://ollama.ai)
+- Start the service: `ollama serve`
+- Verify it's running: `curl http://localhost:11434/api/tags`
 
-### "Failed to load local HF model"
-- Verify model paths are correct (check environment variables)
-- Ensure models are downloaded to the specified locations
-- Check that the models are compatible (FLAN-T5 for text generation, sentence-transformers for embeddings)
+### "Failed to pull model"
+- Ensure Ollama is running: `ollama serve`
+- Manually pull the model: `ollama pull llama3.1:8b`
+- Check disk space (models are 4-8GB)
+- Check internet connection
+
+### "Python runtime failed to start"
+- Ensure Python 3.9+ is installed and in PATH
+- Check Python version: `python --version`
+- Manually run setup: `python setup_env.py`
+- Check logs for specific errors
+
+### "Failed to initialize RAG engine"
+- Ensure Ollama is running and models are pulled
+- Check `documents/` folder exists and contains files
+- Verify ChromaDB can write to `chroma_db/` directory
+- Check logs for specific errors
 
 ### "No documents loaded"
-- Verify PDF/DOCX files exist in the `documents/` folder
-- Check that file paths are correct
-- Ensure PDFs contain extractable text (not scanned images without OCR)
+- Verify PDF/DOCX files exist in `documents/` folder
+- Ensure files contain extractable text (not scanned images)
+- Check file permissions
+- Check OneNote conversion logs if using `.one` files
 
-### Port already in use
-- Change the runtime port using environment variables or command-line arguments
-- Kill any existing processes using port 8000
+### Port already in use (8000)
+- Change port: `export ATLASAI_RUNTIME_PORT=9000`
+- Kill existing process: `lsof -ti:8000 | xargs kill` (Unix) or Task Manager (Windows)
+
+### ChromaDB errors
+- Delete `chroma_db/` folder to reset vector store
+- Ensure write permissions for the directory
+- Check disk space
+
+### Slow performance
+- Use a smaller model: `export ATLASAI_OLLAMA_MODEL="llama3.1:3b"`
+- Reduce chunks retrieved: `export ATLASAI_TOP_K="3"`
+- Ensure Ollama has GPU support if available
+- Close other applications to free RAM
 
 ## License
 

@@ -439,3 +439,7 @@ documents/runbook/
 # Local copies of OneNote files (non-destructive mode)
 documents/onenote_copies/
 onenote_copies/
+
+# ChromaDB vector database
+chroma_db/
+*.sqlite3

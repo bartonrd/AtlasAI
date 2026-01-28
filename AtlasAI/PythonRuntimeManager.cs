@@ -30,6 +30,11 @@ namespace AtlasAI
                 return;
             }
 
+            // Run setup script to install requirements and check Ollama
+            Console.WriteLine("Running environment setup...");
+            RunSetupScript();
+            Console.WriteLine();
+
             Console.WriteLine("Starting Python runtime...");
             Console.WriteLine($"Host: {_config.RuntimeHost}");
             Console.WriteLine($"Port: {_config.RuntimePort}");
@@ -172,6 +177,68 @@ namespace AtlasAI
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Runs the setup script to install requirements and check environment.
+        /// </summary>
+        private void RunSetupScript()
+        {
+            try
+            {
+                string solutionRoot = _config.SolutionRoot;
+                string setupScript = Path.Combine(solutionRoot, "setup_env.py");
+
+                if (!File.Exists(setupScript))
+                {
+                    Console.WriteLine("Warning: setup_env.py not found, skipping environment setup");
+                    return;
+                }
+
+                ProcessStartInfo startInfo = new ProcessStartInfo
+                {
+                    FileName = _config.PythonExecutable,
+                    Arguments = $"\"{setupScript}\"",
+                    WorkingDirectory = solutionRoot,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+                using var setupProcess = Process.Start(startInfo);
+                if (setupProcess == null)
+                {
+                    Console.WriteLine("Warning: Failed to start setup process");
+                    return;
+                }
+
+                // Read output
+                string output = setupProcess.StandardOutput.ReadToEnd();
+                string error = setupProcess.StandardError.ReadToEnd();
+                
+                setupProcess.WaitForExit();
+
+                // Display output
+                if (!string.IsNullOrEmpty(output))
+                {
+                    Console.WriteLine(output);
+                }
+                
+                if (!string.IsNullOrEmpty(error))
+                {
+                    Console.WriteLine(error);
+                }
+
+                if (setupProcess.ExitCode != 0)
+                {
+                    Console.WriteLine($"Warning: Setup script exited with code {setupProcess.ExitCode}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Warning: Error running setup script: {ex.Message}");
+            }
         }
 
         public void Dispose()
