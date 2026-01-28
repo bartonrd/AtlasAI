@@ -4,6 +4,7 @@ RAG Engine - Core logic for document retrieval and question answering.
 
 import os
 import re
+import logging
 from typing import List, Dict, Any, Optional
 
 # Loaders: PDF + DOCX
@@ -11,6 +12,9 @@ from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 
 # OneNote converter
 from .onenote_converter import convert_onenote_directory
+
+# Intent classifier
+from .intent_classifier import IntentClassifier
 
 # Splitter (v1 package)
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -31,6 +35,8 @@ from langchain_core.prompts import PromptTemplate
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, pipeline
 from langchain_huggingface import HuggingFacePipeline
 
+# Configure logging
+logger = logging.getLogger(__name__)
 
 # Configuration constants
 MAX_FILES_TO_DISPLAY = 5  # Maximum number of files to show in logging output
@@ -75,6 +81,7 @@ class RAGEngine:
         self._embeddings = None
         self._llm = None
         self._qa_chain = None
+        self._intent_classifier = None
         
         # Convert OneNote files to PDF on initialization
         self._convert_onenote_runbook()
@@ -230,12 +237,143 @@ class RAGEngine:
             self._llm = HuggingFacePipeline(pipeline=gen_pipe)
         return self._llm
 
-    def _create_qa_chain(self, additional_paths: Optional[List[str]] = None) -> RetrievalQA:
+    def _get_intent_classifier(self) -> IntentClassifier:
+        """Get or create intent classifier."""
+        if self._intent_classifier is None:
+            logger.info("Initializing intent classifier...")
+            self._intent_classifier = IntentClassifier()
+        return self._intent_classifier
+
+    def _get_intent_specific_prompt(self, intent: str) -> PromptTemplate:
+        """
+        Get an intent-specific prompt template.
+        
+        Args:
+            intent: Detected intent category
+            
+        Returns:
+            PromptTemplate configured for the intent
+        """
+        if intent == "error_log_resolution":
+            template = """You are a technical support assistant specializing in troubleshooting.
+
+The user is experiencing an error or issue. Using the retrieved context, help them resolve it.
+
+Rules:
+- Focus on identifying the root cause and providing solutions
+- If context contains error codes or error messages, explain them
+- Provide step-by-step troubleshooting steps
+- If the context doesn't contain relevant error information, acknowledge this and provide general guidance
+- FORMAT your answer as 3–7 Markdown bullet points
+- Each bullet MUST start with "- " and be followed by a newline
+- Keep each bullet to 1-2 sentences focused on actionable solutions
+
+Question:
+{question}
+
+Context:
+{context}
+
+Answer (troubleshooting steps as markdown bullets):
+"""
+        elif intent == "how_to":
+            template = """You are a helpful technical guide providing step-by-step instructions.
+
+The user wants to know how to perform a specific task. Using the retrieved context, provide clear instructions.
+
+Rules:
+- Provide step-by-step instructions in a logical order
+- Include any prerequisites or requirements
+- Mention important warnings or considerations
+- If the context doesn't contain specific instructions, provide general guidance based on what's available
+- FORMAT your answer as 3–7 Markdown bullet points
+- Each bullet MUST start with "- " and be followed by a newline
+- Each bullet should be a clear, actionable step
+
+Question:
+{question}
+
+Context:
+{context}
+
+Answer (step-by-step instructions as markdown bullets):
+"""
+        elif intent == "chit_chat":
+            template = """You are a friendly and professional assistant.
+
+The user is engaging in casual conversation. Respond appropriately and naturally.
+
+Rules:
+- Be conversational and friendly but professional
+- Keep responses brief and relevant
+- If appropriate, offer to help with technical questions
+- Don't force the use of context if it's not relevant to casual conversation
+- FORMAT your answer as 1–3 Markdown bullet points
+- Each bullet MUST start with "- " and be followed by a newline
+
+Question:
+{question}
+
+Context (may not be relevant for casual conversation):
+{context}
+
+Answer (brief, friendly response as markdown bullets):
+"""
+        elif intent == "concept_explanation":
+            template = """You are a technical expert providing clear explanations of concepts.
+
+The user wants to understand a concept or technical detail. Using the retrieved context, explain it clearly.
+
+Rules:
+- Define key terms and concepts clearly
+- Provide context about why it's important
+- Include relevant technical details from the context
+- Use examples if available in the context
+- If context is limited, explain what you can and note what's not covered
+- FORMAT your answer as 3–7 Markdown bullet points
+- Each bullet MUST start with "- " and be followed by a newline
+- Build explanation progressively from basic to more detailed
+
+Question:
+{question}
+
+Context:
+{context}
+
+Answer (concept explanation as markdown bullets):
+"""
+        else:
+            # Default template
+            template = """You are a concise, helpful assistant for a RAG system.
+
+Rules:
+- If the question is unrelated to the context, reply briefly to the user without using the context.
+- Otherwise, answer using ONLY the retrieved context.
+- FORMAT your final answer as 3–7 Markdown bullet points.
+- Each bullet MUST start with "- " and be followed by a newline.
+- Keep each bullet to one sentence. No preface, no closing remarks—bullets only.
+
+Question:
+{question}
+
+Context:
+{context}
+
+Answer (markdown bullets only):
+"""
+        
+        return PromptTemplate(
+            input_variables=["question", "context"],
+            template=template,
+        )
+
+    def _create_qa_chain(self, additional_paths: Optional[List[str]] = None, intent: Optional[str] = None) -> RetrievalQA:
         """
         Create or recreate the QA chain with current settings.
 
         Args:
             additional_paths: Additional document paths to include
+            intent: Intent category for customizing the prompt
 
         Returns:
             RetrievalQA chain
@@ -262,8 +400,13 @@ class RAGEngine:
         # Get LLM
         llm = self._get_llm()
 
-        # Create prompt
-        template = """You are a concise, helpful assistant for a RAG system.
+        # Get intent-specific prompt if intent is provided
+        if intent:
+            qa_prompt = self._get_intent_specific_prompt(intent)
+            logger.info(f"Using intent-specific prompt for: {intent}")
+        else:
+            # Default prompt
+            template = """You are a concise, helpful assistant for a RAG system.
 
 Rules:
 - If the question is unrelated to the context, reply briefly to the user without using the context.
@@ -280,10 +423,10 @@ Context:
 
 Answer (markdown bullets only):
 """
-        qa_prompt = PromptTemplate(
-            input_variables=["question", "context"],
-            template=template,
-        )
+            qa_prompt = PromptTemplate(
+                input_variables=["question", "context"],
+                template=template,
+            )
 
         # Create QA chain
         qa = RetrievalQA.from_chain_type(
@@ -305,16 +448,20 @@ Answer (markdown bullets only):
             additional_documents: Optional additional document paths
 
         Returns:
-            Dictionary with 'answer' and 'sources' keys
+            Dictionary with 'answer', 'sources', 'intent', 'intent_confidence' keys
         """
-        # Use existing QA chain, or recreate if additional documents are provided or if chain not initialized
-        if additional_documents or self._qa_chain is None:
-            qa_chain = self._create_qa_chain(additional_documents)
-            # Cache the chain if it wasn't initialized before
-            if self._qa_chain is None:
-                self._qa_chain = qa_chain
-        else:
-            qa_chain = self._qa_chain
+        # Classify intent
+        intent_classifier = self._get_intent_classifier()
+        intent_result = intent_classifier.classify(question)
+        detected_intent = intent_result["intent"]
+        intent_confidence = intent_result["confidence"]
+        
+        logger.info(f"Detected intent: {detected_intent} (confidence: {intent_confidence:.2f})")
+        logger.info(f"Classification method: {intent_result.get('method', 'unknown')}")
+        
+        # Create a new QA chain with intent-specific prompt for each query
+        # This ensures we always use the right prompt for the detected intent
+        qa_chain = self._create_qa_chain(additional_documents, intent=detected_intent)
 
         # Run the chain
         result = qa_chain.invoke({"query": question})
@@ -344,6 +491,8 @@ Answer (markdown bullets only):
         return {
             "answer": formatted_answer,
             "sources": source_list,
+            "intent": detected_intent,
+            "intent_confidence": intent_confidence,
         }
 
     @staticmethod
