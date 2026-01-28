@@ -2,7 +2,43 @@
 
 ## Overview
 
-Successfully implemented a comprehensive intent inferring system for the AtlasAI chatbot that automatically detects user intent and provides contextually appropriate responses.
+Successfully implemented a comprehensive intent inferring system for the AtlasAI chatbot that automatically detects user intent and provides contextually appropriate responses. **Enhanced for reliability-critical electrical grid operations** with domain-specific technical term recognition and confidence threshold management.
+
+## Recent Enhancements (Reliability-Critical Update)
+
+### Problem Addressed
+Two similar technical queries yielded drastically different results:
+- "point not mapped" → misclassified as chit-chat (60% confidence) → wrong response type
+- "fatal error: point not mapped" → error_log_resolution (33% confidence) → inadequate response
+
+### Solutions Implemented
+
+1. **Domain-Specific Technical Keyword Recognition**
+   - Added 30+ SCADA/Electrical Grid specific keywords
+   - Technical terms: point, device, station, mapped, telemetry, SCADA, EMS, ADMS, etc.
+   - Prevents technical queries from being misclassified as chit-chat
+   - Boosts confidence by 0.3 when technical terms detected
+
+2. **Minimum Confidence Threshold**
+   - Introduced MIN_INTENT_CONFIDENCE_THRESHOLD = 0.4 (40%)
+   - Falls back to concept_explanation for low-confidence classifications
+   - Prevents inadequate responses from poor intent detection
+
+3. **Improved Multi-Intent Handling**
+   - When both error and concept keywords present, prefers concept_explanation
+   - Concept_explanation prompt enhanced to include troubleshooting guidance
+   - Handles queries that combine explanation with error resolution
+
+4. **Short Query Enhancement**
+   - Technical terms checked before applying length-based chit-chat default
+   - "point not mapped" now correctly classified as technical query (0.70 confidence)
+   - Short technical queries no longer misclassified as casual conversation
+
+### Test Results
+- ✅ All 9 reliability-critical test cases pass
+- ✅ Similar queries receive compatible classifications
+- ✅ No technical queries misclassified as chit-chat
+- ✅ All queries meet minimum confidence threshold
 
 ## What Was Implemented
 

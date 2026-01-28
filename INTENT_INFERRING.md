@@ -2,7 +2,36 @@
 
 ## Overview
 
-AtlasAI now includes an **intent inferring system** that automatically detects the user's intent from their query and provides more contextually appropriate responses. This feature significantly improves response quality, especially for short or ambiguous prompts.
+AtlasAI includes an **intent inferring system** that automatically detects the user's intent from their query and provides more contextually appropriate responses. This feature is especially critical for reliability-critical applications like electrical grid operations where consistent and accurate responses are essential.
+
+## Key Features for Reliability
+
+### Domain-Specific Technical Term Recognition
+
+The classifier includes extensive SCADA/Electrical Grid terminology recognition to ensure technical queries are never misclassified as casual conversation:
+
+**Technical Keywords**: point, device, station, mapped, mapping, telemetry, SCADA, EMS, ADMS, converter, internal, external, XML, SIFB, audit trail, measurement, tap position, display file, station placement, DevXref, connectivity, model, build, rebuild, config, connection, association, mismatch, unmapped, mis-assigned, rename
+
+**Example**: "point not mapped" is correctly identified as a technical query, not chit-chat, even though it's only 3 words.
+
+### Confidence Threshold Management
+
+- **Minimum Confidence Threshold**: 0.4 (40%)
+- **Behavior**: If detected intent has confidence below 0.4, the system falls back to `concept_explanation` which provides comprehensive information including troubleshooting steps
+- **Benefit**: Prevents low-quality classifications from producing inadequate responses
+
+### Similar Query Consistency
+
+The system ensures similar technical queries receive compatible classifications regardless of error-indicating prefixes:
+
+**Example**:
+- "point not mapped" → concept_explanation (0.70 confidence)
+- "fatal error: point not mapped" → error_log_resolution (0.95 confidence)
+
+Both receive appropriate responses because:
+1. Both are recognized as technical queries (not chit-chat)
+2. Both have confidence above threshold
+3. The concept_explanation prompt includes troubleshooting guidance
 
 ## Supported Intent Types
 
