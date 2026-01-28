@@ -80,16 +80,17 @@ class RAGEngine:
         # Lazy initialization for models
         self._embeddings = None
         self._llm = None
-        self._qa_chain = None
+        self._retriever = None  # Cache the retriever (expensive to create)
+        self._intent_qa_chains = {}  # Cache QA chains per intent
         self._intent_classifier = None
         
         # Convert OneNote files to PDF on initialization
         self._convert_onenote_runbook()
         
-        # Eagerly initialize the QA chain with all documents
+        # Eagerly initialize the retriever with all documents
         try:
             print("Initializing RAG corpus...")
-            self._qa_chain = self._create_qa_chain()
+            self._retriever = self._create_retriever()
             print("RAG corpus initialized and ready for queries")
         except Exception as e:
             print(f"Warning: Failed to initialize RAG corpus during startup: {e}")
@@ -343,8 +344,16 @@ Context:
 Answer (concept explanation as markdown bullets):
 """
         else:
-            # Default template
-            template = """You are a concise, helpful assistant for a RAG system.
+            # Use default template
+            template = self.DEFAULT_PROMPT_TEMPLATE
+        
+        return PromptTemplate(
+            input_variables=["question", "context"],
+            template=template,
+        )
+
+    # Default prompt template as a constant to avoid duplication
+    DEFAULT_PROMPT_TEMPLATE = """You are a concise, helpful assistant for a RAG system.
 
 Rules:
 - If the question is unrelated to the context, reply briefly to the user without using the context.
@@ -361,22 +370,17 @@ Context:
 
 Answer (markdown bullets only):
 """
-        
-        return PromptTemplate(
-            input_variables=["question", "context"],
-            template=template,
-        )
 
-    def _create_qa_chain(self, additional_paths: Optional[List[str]] = None, intent: Optional[str] = None) -> RetrievalQA:
+    def _create_retriever(self, additional_paths: Optional[List[str]] = None):
         """
-        Create or recreate the QA chain with current settings.
+        Create or recreate the retriever with current settings.
+        This is the expensive operation that loads and indexes documents.
 
         Args:
             additional_paths: Additional document paths to include
-            intent: Intent category for customizing the prompt
 
         Returns:
-            RetrievalQA chain
+            FAISS retriever
         """
         # Load documents
         docs = self._load_documents(additional_paths)
@@ -397,6 +401,20 @@ Answer (markdown bullets only):
         vectorstore = FAISS.from_documents(splits, embeddings)
         retriever = vectorstore.as_retriever(search_kwargs={"k": self.top_k})
 
+        return retriever
+
+    def _create_qa_chain_with_intent(self, retriever, intent: Optional[str] = None) -> RetrievalQA:
+        """
+        Create a QA chain with the given retriever and intent.
+        This is lightweight as it only creates the chain wrapper.
+
+        Args:
+            retriever: Document retriever to use
+            intent: Intent category for customizing the prompt
+
+        Returns:
+            RetrievalQA chain
+        """
         # Get LLM
         llm = self._get_llm()
 
@@ -405,27 +423,10 @@ Answer (markdown bullets only):
             qa_prompt = self._get_intent_specific_prompt(intent)
             logger.info(f"Using intent-specific prompt for: {intent}")
         else:
-            # Default prompt
-            template = """You are a concise, helpful assistant for a RAG system.
-
-Rules:
-- If the question is unrelated to the context, reply briefly to the user without using the context.
-- Otherwise, answer using ONLY the retrieved context.
-- FORMAT your final answer as 3–7 Markdown bullet points.
-- Each bullet MUST start with "- " and be followed by a newline.
-- Keep each bullet to one sentence. No preface, no closing remarks—bullets only.
-
-Question:
-{question}
-
-Context:
-{context}
-
-Answer (markdown bullets only):
-"""
+            # Use default prompt template
             qa_prompt = PromptTemplate(
                 input_variables=["question", "context"],
-                template=template,
+                template=self.DEFAULT_PROMPT_TEMPLATE,
             )
 
         # Create QA chain
@@ -459,9 +460,22 @@ Answer (markdown bullets only):
         logger.info(f"Detected intent: {detected_intent} (confidence: {intent_confidence:.2f})")
         logger.info(f"Classification method: {intent_result.get('method', 'unknown')}")
         
-        # Create a new QA chain with intent-specific prompt for each query
-        # This ensures we always use the right prompt for the detected intent
-        qa_chain = self._create_qa_chain(additional_documents, intent=detected_intent)
+        # Get or create retriever (expensive operation, done once or when docs change)
+        if additional_documents or self._retriever is None:
+            retriever = self._create_retriever(additional_documents)
+            # Cache the retriever if it wasn't initialized before and no additional docs
+            if self._retriever is None and not additional_documents:
+                self._retriever = retriever
+        else:
+            retriever = self._retriever
+        
+        # Get or create intent-specific QA chain (lightweight operation)
+        cache_key = detected_intent if not additional_documents else f"{detected_intent}_custom"
+        if cache_key not in self._intent_qa_chains:
+            self._intent_qa_chains[cache_key] = self._create_qa_chain_with_intent(retriever, detected_intent)
+            logger.info(f"Created new QA chain for intent: {detected_intent}")
+        
+        qa_chain = self._intent_qa_chains[cache_key]
 
         # Run the chain
         result = qa_chain.invoke({"query": question})

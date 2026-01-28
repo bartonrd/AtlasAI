@@ -199,20 +199,63 @@ Response:
 
 ### Unit Tests
 
-Run the keyword-based classification tests:
+The intent classification system includes unit tests for the keyword-based fallback. You can create a test script based on this example:
 
-```bash
-python /tmp/test_intent_keywords.py
+```python
+# Example test script (save as test_intent.py)
+from atlasai_runtime.intent_classifier import IntentClassifier
+
+classifier = IntentClassifier()
+test_cases = [
+    ("I'm getting an error", "error_log_resolution"),
+    ("How do I configure X?", "how_to"),
+    ("Hello!", "chit_chat"),
+    ("What is ADMS?", "concept_explanation"),
+]
+
+for query, expected in test_cases:
+    result = classifier.classify(query)
+    print(f"Query: '{query}'")
+    print(f"  Expected: {expected}, Got: {result['intent']}")
+    print(f"  Confidence: {result['confidence']:.2f}")
 ```
 
-Expected: 91.7% accuracy or better
+Expected accuracy: 91.7% or better on diverse test cases
 
 ### Demo Script
 
-See the full demonstration:
+You can create a demonstration script to see the system in action:
 
-```bash
-python /tmp/demonstrate_intent_system.py
+```python
+# Example demo script (save as demo_intent.py)
+from atlasai_runtime.intent_classifier import IntentClassifier
+
+classifier = IntentClassifier()
+
+examples = {
+    "Error Resolution": [
+        "I'm getting a connection refused error",
+        "The application crashed with error code 500"
+    ],
+    "How-To": [
+        "How do I configure the database?",
+        "What are the steps to deploy?"
+    ],
+    "Chit-Chat": [
+        "Hello! How are you?",
+        "Thank you for your help!"
+    ],
+    "Concepts": [
+        "What is a load balancer?",
+        "Explain microservices"
+    ]
+}
+
+for category, queries in examples.items():
+    print(f"\n{category}:")
+    for query in queries:
+        result = classifier.classify(query)
+        print(f"  '{query}' -> {result['intent']} ({result['confidence']:.0%})")
 ```
 
 ### Test Cases

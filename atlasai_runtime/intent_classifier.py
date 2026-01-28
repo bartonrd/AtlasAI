@@ -5,7 +5,7 @@ Classifies user queries into predefined intent categories to improve response qu
 """
 
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +68,12 @@ class IntentClassifier:
         ]
     }
     
+    # Keyword-based classification constants
+    # Confidence normalization: divide keyword match count by this value
+    # 3 matches = high confidence (~1.0), 1 match = medium confidence (~0.33)
+    KEYWORD_CONFIDENCE_DIVISOR = 3.0
+    MAX_KEYWORD_CONFIDENCE = 0.9  # Cap for keyword-based confidence
+    
     def __init__(self, model_name: str = "facebook/bart-large-mnli", confidence_threshold: float = 0.3):
         """
         Initialize the intent classifier.
@@ -102,10 +108,12 @@ class IntentClassifier:
                 
             logger.info(f"Loading intent classifier model: {self.model_name}")
             try:
+                # Check if CUDA is available (torch is guaranteed to be available here due to TRANSFORMERS_AVAILABLE check)
+                device = 0 if (torch and torch.cuda.is_available()) else -1
                 self._classifier = pipeline(
                     "zero-shot-classification",
                     model=self.model_name,
-                    device=0 if torch.cuda.is_available() else -1
+                    device=device
                 )
                 logger.info("Intent classifier loaded successfully")
             except Exception as e:
@@ -139,11 +147,11 @@ class IntentClassifier:
         
         # Return intent with highest score
         max_intent = max(scores.items(), key=lambda x: x[1])
-        # Normalize confidence between 0 and 1
-        confidence = min(max_intent[1] / 3.0, 0.9)  # Cap at 0.9 for keyword-based
+        # Normalize confidence: more keyword matches = higher confidence
+        confidence = min(max_intent[1] / self.KEYWORD_CONFIDENCE_DIVISOR, self.MAX_KEYWORD_CONFIDENCE)
         return max_intent[0], confidence
     
-    def classify(self, query: str) -> Dict[str, any]:
+    def classify(self, query: str) -> Dict[str, Any]:
         """
         Classify the user query into an intent category.
         
