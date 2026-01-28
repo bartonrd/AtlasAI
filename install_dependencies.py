@@ -189,44 +189,59 @@ def check_ollama_model():
 
 def main():
     """Main installation routine"""
-    print("="*70)
-    print("AtlasAI Dependency Installer")
-    print("="*70)
-    
-    success = True
-    
-    # Check Python version
-    if not check_python_version():
-        success = False
-    
-    # Check pip
-    if not check_pip():
-        success = False
-    
-    # Install Python requirements
-    if success:
-        if not install_requirements():
+    try:
+        print("="*70)
+        print("AtlasAI Dependency Installer")
+        print("="*70)
+        
+        success = True
+        
+        # Check Python version
+        if not check_python_version():
             success = False
-    
-    # Check Ollama
-    ollama_ok = check_ollama()
-    if ollama_ok:
-        check_ollama_model()
-    else:
-        print("\n⚠ WARNING: Ollama is not installed or not running")
-        print("The application requires Ollama to function.")
-        success = False
-    
-    print("\n" + "="*70)
-    if success:
-        print("✓ All dependencies are ready!")
-        print("="*70)
-        return 0
-    else:
-        print("⚠ Some dependencies need attention")
-        print("="*70)
+        
+        # Check pip
+        if not check_pip():
+            success = False
+        
+        # Install Python requirements
+        if success:
+            if not install_requirements():
+                success = False
+        
+        # Check Ollama
+        ollama_ok = check_ollama()
+        if ollama_ok:
+            check_ollama_model()
+        else:
+            print("\n⚠ WARNING: Ollama is not installed or not running")
+            print("The application requires Ollama to function.")
+            success = False
+        
+        print("\n" + "="*70)
+        if success:
+            print("✓ All dependencies are ready!")
+            print("="*70)
+            return 0
+        else:
+            print("⚠ Some dependencies need attention")
+            print("="*70)
+            return 1
+    except Exception as e:
+        print(f"\n\nERROR in main: {e}")
+        import traceback
+        traceback.print_exc()
         return 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\n\nInstallation cancelled by user.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n\nERROR: An unexpected error occurred: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
