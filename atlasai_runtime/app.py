@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from .rag_engine_new import RAGEngine
+from .rag_engine import RAGEngine
 from .task_executor import LocalTaskExecutor
 
 # Configure logging
