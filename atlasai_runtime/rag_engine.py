@@ -92,26 +92,37 @@ class RAGEngine:
         """
         Convert OneNote files from the runbook path to PDFs.
         Saves converted PDFs in documents/runbook/ directory.
+        Uses non-destructive mode with local copies.
         """
         # Create runbook directory path
         runbook_output_dir = os.path.join(self.documents_dir, "runbook")
         
+        # Create local copy directory for non-destructive processing
+        local_copy_dir = os.path.join(self.documents_dir, "onenote_copies")
+        
         print("=" * 70)
-        print("OneNote to PDF Conversion")
+        print("OneNote to PDF Conversion (Non-Destructive Mode)")
         print("=" * 70)
         print(f"Source directory: {self.onenote_runbook_path}")
+        print(f"Local copies directory: {local_copy_dir}")
         print(f"Output directory: {runbook_output_dir}")
         print(f"Source exists: {os.path.exists(self.onenote_runbook_path)}")
+        print(f"\nNOTE: Original OneNote files will NOT be modified.")
+        print(f"      Local copies will be created for conversion processing.")
         
-        # Convert all .one files to PDF
+        # Convert all .one files to PDF using non-destructive mode
         converted_count = convert_onenote_directory(
             source_dir=self.onenote_runbook_path,
             output_dir=runbook_output_dir,
-            overwrite=True
+            overwrite=True,
+            use_local_copies=True,
+            local_copy_dir=local_copy_dir
         )
         
         if converted_count > 0:
             print(f"[SUCCESS] Successfully converted {converted_count} OneNote file(s) to PDF")
+            print(f"[INFO] Original files remain untouched in: {self.onenote_runbook_path}")
+            print(f"[INFO] Local copies stored in: {local_copy_dir}")
             # List the converted files
             if os.path.exists(runbook_output_dir):
                 pdf_files = [f for f in os.listdir(runbook_output_dir) if f.lower().endswith('.pdf')]

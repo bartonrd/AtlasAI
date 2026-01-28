@@ -84,6 +84,9 @@ Examples:
   # Convert with verbose output
   python convert_onenote.py notes.one notes.pdf -v
   
+  # Non-destructive conversion (creates local copies first)
+  python convert_onenote.py onenote_files/ pdf_output/ --directory --use-local-copies
+  
   # Show conversion info
   python convert_onenote.py --info
         """
@@ -115,6 +118,17 @@ Examples:
         help='Skip existing files instead of overwriting'
     )
     parser.add_argument(
+        '--use-local-copies',
+        action='store_true',
+        help='Create local copies before conversion (non-destructive mode)'
+    )
+    parser.add_argument(
+        '--local-copy-dir',
+        type=str,
+        default=None,
+        help='Directory for local copies (used with --use-local-copies)'
+    )
+    parser.add_argument(
         '--info',
         action='store_true',
         help='Show conversion capabilities and exit'
@@ -144,16 +158,30 @@ Examples:
         
         print(f"\nConverting OneNote files from: {args.input}")
         print(f"Output directory: {args.output}")
+        
+        if args.use_local_copies:
+            print(f"Mode: NON-DESTRUCTIVE (using local copies)")
+            if args.local_copy_dir:
+                print(f"Local copy directory: {args.local_copy_dir}")
+        else:
+            print(f"Mode: Standard conversion")
+        
         print()
         
         count = convert_onenote_directory(
             args.input,
             args.output,
             overwrite=not args.no_overwrite,
-            verbose=args.verbose
+            verbose=args.verbose,
+            use_local_copies=args.use_local_copies,
+            local_copy_dir=args.local_copy_dir
         )
         
         print(f"\n✓ Successfully converted {count} file(s)")
+        
+        if args.use_local_copies:
+            print(f"✓ Original files remain untouched in: {args.input}")
+        
         return 0 if count > 0 else 1
     
     # Convert single file

@@ -9,6 +9,17 @@ AtlasAI provides a **pure Python solution** for converting OneNote (.one) files 
 - ✅ **Fully automated** - no manual steps needed
 - ✅ **No COM automation** - pure Python implementation
 - ✅ **Batch processing** - convert multiple files at once
+- ✅ **Non-destructive mode** - work on local copies, preserve originals
+
+## Important: Non-Destructive Mode
+
+The conversion now supports **non-destructive mode** which:
+- Creates local copies of OneNote files before processing
+- Leaves original .one files completely untouched
+- Stores local copies in the `documents/onenote_copies/` directory
+- Processes only the local copies for conversion
+
+This ensures your original OneNote files are never modified or damaged during the conversion process.
 
 ## Why This Approach is Better
 
@@ -32,6 +43,16 @@ Our solution uses:
 - `reportlab` - Pure Python library for generating PDFs
 - No external applications needed
 - Works on any platform
+- **Non-destructive mode** protects original files
+
+### Known Limitations
+
+The pure Python approach has some limitations:
+- **Special characters**: May not render complex special characters perfectly
+- **Screenshots/Images**: Does not extract embedded images (pyOneNote limitation)
+- **Formatting**: Complex formatting may not be preserved
+
+The conversion extracts text content, metadata, and document structure, which is sufficient for searchable PDF documents and RAG processing.
 
 ## Installation
 
@@ -61,6 +82,18 @@ python convert_onenote.py input.one output.pdf
 
 ```bash
 python convert_onenote.py onenote_files/ pdf_output/ --directory
+```
+
+#### Non-Destructive Conversion (Recommended)
+
+Use this mode to create local copies before conversion, ensuring original files are never modified:
+
+```bash
+# Non-destructive mode with local copies
+python convert_onenote.py onenote_files/ pdf_output/ --directory --use-local-copies
+
+# Specify custom local copy directory
+python convert_onenote.py onenote_files/ pdf_output/ --directory --use-local-copies --local-copy-dir my_copies/
 ```
 
 #### Verbose Mode (See Detailed Progress)
@@ -117,7 +150,7 @@ for file, success in results.items():
 ```python
 from atlasai_runtime.onenote_converter import convert_onenote_directory
 
-# Convert all .one files in a directory
+# Standard conversion
 count = convert_onenote_directory(
     source_dir="onenote_files/",
     output_dir="pdf_output/",
@@ -126,6 +159,42 @@ count = convert_onenote_directory(
 )
 
 print(f"Converted {count} files")
+```
+
+#### Non-Destructive Conversion (Recommended)
+
+```python
+from atlasai_runtime.onenote_converter import convert_onenote_directory
+
+# Non-destructive mode with local copies
+count = convert_onenote_directory(
+    source_dir="onenote_files/",
+    output_dir="pdf_output/",
+    overwrite=True,
+    verbose=True,
+    use_local_copies=True,  # Enable non-destructive mode
+    local_copy_dir="local_copies/"  # Optional: specify copy location
+)
+
+print(f"Converted {count} files (originals untouched)")
+```
+
+#### Copy OneNote Files Locally
+
+```python
+from atlasai_runtime.onenote_converter import copy_onenote_files_locally
+
+# Create local copies
+files = ["/network/notes1.one", "/network/notes2.one"]
+copy_mapping = copy_onenote_files_locally(
+    files,
+    local_copy_dir="local_copies/",
+    verbose=True
+)
+
+# copy_mapping contains: {original_path: local_copy_path}
+for original, copy in copy_mapping.items():
+    print(f"Copied: {original} -> {copy}")
 ```
 
 #### Get Conversion Information

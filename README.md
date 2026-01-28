@@ -285,8 +285,16 @@ Place PDF or DOCX files in the `documents/` folder. The runtime will automatical
 
 AtlasAI provides a **pure Python solution** for converting OneNote (.one) files to PDF format **without requiring Windows COM automation or OneNote installation**. This makes it cross-platform compatible and fully automated.
 
+**Non-Destructive Conversion:**
+- The system now uses **non-destructive mode** by default
+- Creates local copies of OneNote files before processing
+- Original .one files remain completely untouched
+- Local copies are stored in `documents/onenote_copies/`
+- All conversion processing happens on the local copies
+
 **How it works:**
 - On startup, the application scans the configured OneNote runbook path for .one files
+- Local copies are created in the `documents/onenote_copies/` directory
 - All .one files are converted to PDF format using the built-in Python converter
 - Converted PDFs are saved in the `documents/runbook/` folder
 - The PDFs are automatically loaded into the RAG context
@@ -299,6 +307,12 @@ The conversion uses:
 - Works on Windows, Linux, and macOS
 - No COM automation or OneNote installation needed
 
+**Known Limitations:**
+- Special characters may not render perfectly (pyOneNote limitation)
+- Screenshots/images are not extracted (pyOneNote limitation)
+- Complex formatting may not be preserved
+- Text content, metadata, and structure are extracted for RAG processing
+
 **Manual Conversion Options:**
 
 You can also convert OneNote files manually using the provided script:
@@ -307,8 +321,11 @@ You can also convert OneNote files manually using the provided script:
 # Convert a single file
 python convert_onenote.py input.one output.pdf
 
-# Convert an entire directory
+# Convert an entire directory (standard mode)
 python convert_onenote.py input_dir/ output_dir/ --directory
+
+# Non-destructive conversion (creates local copies first)
+python convert_onenote.py input_dir/ output_dir/ --directory --use-local-copies
 
 # Convert with verbose logging
 python convert_onenote.py input.one output.pdf --verbose
@@ -323,7 +340,8 @@ python convert_onenote.py --info
 from atlasai_runtime.onenote_converter import (
     convert_onenote_to_pdf,
     batch_convert_onenote_to_pdf,
-    convert_onenote_directory
+    convert_onenote_directory,
+    copy_onenote_files_locally
 )
 
 # Convert single file
@@ -333,15 +351,23 @@ convert_onenote_to_pdf("notes.one", "notes.pdf", verbose=True)
 files = ["notes1.one", "notes2.one", "notes3.one"]
 results = batch_convert_onenote_to_pdf(files, "output_dir/")
 
-# Convert entire directory
-count = convert_onenote_directory("onenote_files/", "pdf_output/")
+# Convert entire directory (non-destructive mode)
+count = convert_onenote_directory(
+    "onenote_files/", 
+    "pdf_output/",
+    use_local_copies=True,
+    local_copy_dir="local_copies/"
+)
+
+# Create local copies only
+copy_mapping = copy_onenote_files_locally(files, "local_copies/")
 ```
 
 **Configuration:**
 - Set `ATLASAI_ONENOTE_RUNBOOK_PATH` environment variable to point to your OneNote files directory
 - Default path: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`
 
-**Note**: The conversion extracts metadata, properties, and embedded file information from OneNote files. While this provides searchable content, it may not preserve the exact visual layout of the original notes. This is a limitation of the OneNote file format's complexity, but the pure Python approach ensures cross-platform compatibility without external dependencies.
+**Safety**: The non-destructive mode ensures your original OneNote files are never modified or damaged during conversion. All processing happens on local copies stored in the documents folder.
 
 ## Troubleshooting
 

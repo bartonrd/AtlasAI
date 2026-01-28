@@ -408,6 +408,67 @@ def _extract_content_from_onenote(one_file, file_path: str, verbose: bool = Fals
 
 
 
+def copy_onenote_files_locally(
+    source_files: List[str],
+    local_copy_dir: str,
+    verbose: bool = False
+) -> Dict[str, str]:
+    """
+    Create local copies of OneNote files for non-destructive processing.
+    
+    This function copies .one files to a local directory, ensuring the original
+    files remain untouched during conversion processing.
+    
+    Args:
+        source_files: List of paths to source .one files
+        local_copy_dir: Directory where local copies will be stored
+        verbose: If True, log detailed copy information
+        
+    Returns:
+        Dictionary mapping original file paths to local copy paths
+        
+    Example:
+        >>> files = ["/network/notes1.one", "/network/notes2.one"]
+        >>> copies = copy_onenote_files_locally(files, "local_copies/")
+        >>> print(f"Created {len(copies)} local copies")
+    """
+    # Create local copy directory
+    os.makedirs(local_copy_dir, exist_ok=True)
+    
+    copy_mapping = {}
+    
+    if verbose:
+        logger.info(f"Creating local copies of {len(source_files)} file(s) in: {local_copy_dir}")
+    
+    for source_path in source_files:
+        if not os.path.exists(source_path):
+            logger.warning(f"Source file not found, skipping: {source_path}")
+            continue
+        
+        try:
+            # Generate local copy filename
+            basename = os.path.basename(source_path)
+            local_copy_path = os.path.join(local_copy_dir, basename)
+            
+            # Copy the file
+            if verbose:
+                logger.info(f"Copying: {basename}")
+            
+            shutil.copy2(source_path, local_copy_path)
+            copy_mapping[source_path] = local_copy_path
+            
+            if verbose:
+                logger.info(f"  -> Created local copy: {local_copy_path}")
+                
+        except Exception as e:
+            logger.error(f"Error copying {source_path}: {e}")
+            continue
+    
+    logger.info(f"Created {len(copy_mapping)} local cop{'y' if len(copy_mapping) == 1 else 'ies'}")
+    
+    return copy_mapping
+
+
 def batch_convert_onenote_to_pdf(
     one_files: List[str],
     output_dir: str,
@@ -474,7 +535,9 @@ def convert_onenote_directory(
     source_dir: str,
     output_dir: str,
     overwrite: bool = True,
-    verbose: bool = False
+    verbose: bool = False,
+    use_local_copies: bool = False,
+    local_copy_dir: str = None
 ) -> int:
     """
     Convert all OneNote files in a directory to PDFs.
@@ -488,13 +551,23 @@ def convert_onenote_directory(
         overwrite: If True, clear output directory first and overwrite all files.
                    If False, keep existing files and skip conversion if PDF exists.
         verbose: If True, log detailed conversion information
+        use_local_copies: If True, create local copies before conversion (non-destructive)
+        local_copy_dir: Directory for local copies. If None and use_local_copies=True,
+                        uses a subdirectory within output_dir
         
     Returns:
         Number of files successfully converted
         
     Example:
+        >>> # Standard conversion
         >>> count = convert_onenote_directory("onenote_files/", "pdfs/")
-        >>> print(f"Converted {count} files")
+        >>> 
+        >>> # Non-destructive conversion with local copies
+        >>> count = convert_onenote_directory(
+        ...     "onenote_files/", "pdfs/", 
+        ...     use_local_copies=True, 
+        ...     local_copy_dir="local_copies/"
+        ... )
     """
     if not os.path.exists(source_dir):
         logger.error(f"Source directory does not exist: {source_dir}")
@@ -517,32 +590,65 @@ def convert_onenote_directory(
             return 0
     
     # Find all .one files
-    one_files = []
+    source_files = []
     try:
         for filename in os.listdir(source_dir):
             if filename.lower().endswith('.one'):
-                one_files.append(os.path.join(source_dir, filename))
+                source_files.append(os.path.join(source_dir, filename))
     except Exception as e:
         logger.error(f"Error listing files in {source_dir}: {e}")
         return 0
     
-    if not one_files:
+    if not source_files:
         logger.warning(f"No .one files found in {source_dir}")
         return 0
     
-    logger.info(f"Found {len(one_files)} OneNote file(s) to convert")
+    logger.info(f"Found {len(source_files)} OneNote file(s) to convert")
+    
+    # Determine which files to convert
+    files_to_convert = source_files
+    
+    # If using local copies, create them first (non-destructive approach)
+    if use_local_copies:
+        # Determine local copy directory
+        if local_copy_dir is None:
+            local_copy_dir = os.path.join(output_dir, "..", "onenote_copies")
+            local_copy_dir = os.path.abspath(local_copy_dir)
+        
+        logger.info(f"[NON-DESTRUCTIVE MODE] Creating local copies before conversion")
+        logger.info(f"Local copy directory: {local_copy_dir}")
+        
+        # Create local copies
+        copy_mapping = copy_onenote_files_locally(
+            source_files,
+            local_copy_dir,
+            verbose=verbose
+        )
+        
+        if not copy_mapping:
+            logger.error("Failed to create any local copies")
+            return 0
+        
+        # Convert from local copies instead of originals
+        files_to_convert = list(copy_mapping.values())
+        logger.info(f"[NON-DESTRUCTIVE MODE] Will process {len(files_to_convert)} local copies")
     
     # Use batch conversion with skip_existing controlled by overwrite parameter
     # When overwrite=False, skip existing files
     results = batch_convert_onenote_to_pdf(
-        one_files,
+        files_to_convert,
         output_dir,
         verbose=verbose,
         skip_existing=not overwrite  # If overwrite=False, skip existing files
     )
     
     converted_count = sum(results.values())
-    logger.info(f"Successfully converted {converted_count}/{len(one_files)} file(s)")
+    logger.info(f"Successfully converted {converted_count}/{len(files_to_convert)} file(s)")
+    
+    if use_local_copies:
+        logger.info(f"[NON-DESTRUCTIVE MODE] Original files remain untouched in: {source_dir}")
+        logger.info(f"[NON-DESTRUCTIVE MODE] Local copies stored in: {local_copy_dir}")
+    
     return converted_count
 
 
