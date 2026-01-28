@@ -120,13 +120,13 @@ Examples:
     parser.add_argument(
         '--use-local-copies',
         action='store_true',
-        help='Create local copies before conversion (non-destructive mode)'
+        help='Create local copies before conversion (non-destructive mode, directory mode only)'
     )
     parser.add_argument(
         '--local-copy-dir',
         type=str,
         default=None,
-        help='Directory for local copies (used with --use-local-copies)'
+        help='Directory for local copies (used with --use-local-copies, directory mode only)'
     )
     parser.add_argument(
         '--info',
@@ -148,6 +148,12 @@ Examples:
     if not args.input or not args.output:
         parser.print_help()
         print("\nError: Input and output paths are required (unless using --info)")
+        return 1
+    
+    # Validate that local copy flags are only used with directory mode
+    if (args.use_local_copies or args.local_copy_dir) and not args.directory:
+        print("\nError: --use-local-copies and --local-copy-dir can only be used with --directory flag")
+        print("       For single file conversion, these options are not applicable.")
         return 1
     
     # Convert directory

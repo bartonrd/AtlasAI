@@ -417,7 +417,8 @@ def copy_onenote_files_locally(
     Create local copies of OneNote files for non-destructive processing.
     
     This function copies .one files to a local directory, ensuring the original
-    files remain untouched during conversion processing.
+    files remain untouched during conversion processing. If multiple files with
+    the same basename exist, they will be numbered to avoid collisions.
     
     Args:
         source_files: List of paths to source .one files
@@ -436,6 +437,7 @@ def copy_onenote_files_locally(
     os.makedirs(local_copy_dir, exist_ok=True)
     
     copy_mapping = {}
+    basename_counts = {}  # Track basenames to handle collisions
     
     if verbose:
         logger.info(f"Creating local copies of {len(source_files)} file(s) in: {local_copy_dir}")
@@ -448,11 +450,21 @@ def copy_onenote_files_locally(
         try:
             # Generate local copy filename
             basename = os.path.basename(source_path)
+            
+            # Handle potential name collisions
+            if basename in basename_counts:
+                # Add counter to make unique
+                basename_counts[basename] += 1
+                name, ext = os.path.splitext(basename)
+                basename = f"{name}_{basename_counts[basename]}{ext}"
+            else:
+                basename_counts[basename] = 0
+            
             local_copy_path = os.path.join(local_copy_dir, basename)
             
             # Copy the file
             if verbose:
-                logger.info(f"Copying: {basename}")
+                logger.info(f"Copying: {os.path.basename(source_path)}")
             
             shutil.copy2(source_path, local_copy_path)
             copy_mapping[source_path] = local_copy_path
@@ -553,7 +565,7 @@ def convert_onenote_directory(
         verbose: If True, log detailed conversion information
         use_local_copies: If True, create local copies before conversion (non-destructive)
         local_copy_dir: Directory for local copies. If None and use_local_copies=True,
-                        uses a subdirectory within output_dir
+                        creates 'onenote_copies' as a sibling directory to output_dir.
         
     Returns:
         Number of files successfully converted
