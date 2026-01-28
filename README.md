@@ -372,7 +372,15 @@ copy_mapping = copy_onenote_files_locally(files, "local_copies/")
 
 ## Intent Inferring
 
-AtlasAI includes an intelligent intent detection system that automatically identifies the type of question you're asking and provides contextually appropriate responses. See [INTENT_INFERRING.md](INTENT_INFERRING.md) for detailed documentation.
+AtlasAI includes an intelligent intent detection system that automatically identifies the type of question you're asking and provides contextually appropriate responses. The detected intent and confidence score are displayed before each response. See [INTENT_INFERRING.md](INTENT_INFERRING.md) for detailed documentation.
+
+### Example Output
+
+```
+You: How do I install the software?
+
+🎯 Detected Intent: How To (Confidence: 95.0%)
+```
 
 ### Supported Intent Types:
 
@@ -397,11 +405,6 @@ The system uses a combination of keyword matching and optional zero-shot classif
 - Check that ML models are downloaded to the configured paths
 
 ### "Failed to load local HF model"
-- Verify model paths are correct (check environment variables)
-- Ensure models are downloaded to the specified locations
-- Check that the models are compatible (FLAN-T5 for text generation, sentence-transformers for embeddings)
-
-### "No documents loaded"
 - Verify PDF/DOCX files exist in the `documents/` folder
 - Check that file paths are correct
 - Ensure PDFs contain extractable text (not scanned images without OCR)
