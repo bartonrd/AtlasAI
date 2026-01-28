@@ -75,6 +75,7 @@ class RAGEngine:
         self._embeddings = None
         self._llm = None
         self._qa_chain = None
+        self._inference_engine = None
         
         # Convert OneNote files to PDF on initialization
         self._convert_onenote_runbook()
@@ -364,6 +365,104 @@ Answer (markdown bullets only):
         cleaned = re.sub(r"\s{2,}", " ", cleaned).strip()
         return cleaned
 
+    def query_with_inference(
+        self,
+        question: str,
+        use_inference: bool = True,
+        user_feedback: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Query with optional inference pipeline.
+        
+        This method provides an inference-enhanced query path that includes
+        intent classification, query rewriting, and structured answer synthesis.
+        
+        Args:
+            question: The question to ask
+            use_inference: Whether to use the inference pipeline (True) or legacy path (False)
+            user_feedback: Optional user feedback on previous answer
+        
+        Returns:
+            Dictionary with answer/question, intent, confidence, citations, and telemetry
+        """
+        if not use_inference:
+            # Use legacy query path
+            legacy_result = self.query(question)
+            return {
+                "answer": legacy_result["answer"],
+                "question": None,
+                "intent": "unknown",
+                "confidence": 1.0,
+                "citations": [
+                    {"index": str(src["index"]), "title": src["source"], "url": src["source"]}
+                    for src in legacy_result["sources"]
+                ],
+                "telemetry": {"mode": "legacy"},
+            }
+        
+        # Initialize inference engine if needed
+        if self._inference_engine is None:
+            self._inference_engine = self._create_inference_engine()
+        
+        # Process query through inference pipeline
+        result = self._inference_engine.process_query(
+            user_query=question,
+            user_feedback=user_feedback,
+        )
+        
+        return result.to_dict()
+    
+    def _create_inference_engine(self):
+        """
+        Create the inference engine with proper search backend.
+        
+        Integrates with the existing FAISS retriever from the QA chain.
+        """
+        from .inference_engine import InferenceEngine
+        from .inference_config import InferenceConfig
+        from .retriever import FAISSSearchBackend
+        
+        # Ensure QA chain is initialized
+        if self._qa_chain is None:
+            self._qa_chain = self._create_qa_chain()
+        
+        # Get the retriever from the QA chain
+        retriever = self._qa_chain.retriever
+        
+        # Wrap FAISS retriever with our search backend adapter
+        search_backend = FAISSSearchBackend(retriever)
+        
+        # Create configuration
+        config = InferenceConfig(
+            top_k=self.top_k,
+            max_answer_tokens=384,
+            llm_model_path=self.text_gen_model_path,
+            embedding_model_path=self.embedding_model_path,
+        )
+        
+        # Create inference engine with LLM provider (reuse existing LLM)
+        llm = self._get_llm()
+        
+        # Create a simple LLM provider wrapper
+        class LLMWrapper:
+            def __init__(self, llm_pipeline):
+                self.llm = llm_pipeline
+            
+            def generate(self, prompt: str, max_tokens: int = 384) -> str:
+                # Use the HuggingFacePipeline directly
+                result = self.llm.invoke(prompt)
+                return result
+        
+        llm_provider = LLMWrapper(llm)
+        
+        inference_engine = InferenceEngine(
+            search_backend=search_backend,
+            config=config,
+            llm_provider=llm_provider,
+        )
+        
+        return inference_engine
+    
     @staticmethod
     def _to_bullets(text: str, min_items: int = 3, max_items: int = 10) -> str:
         """

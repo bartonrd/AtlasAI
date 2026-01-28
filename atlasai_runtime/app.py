@@ -80,6 +80,25 @@ class ChatRequest(BaseModel):
     """Request model for chat completion."""
     message: str = Field(..., description="The user's question or message")
     additional_documents: Optional[List[str]] = Field(None, description="Optional additional document paths")
+    use_inference: bool = Field(False, description="Use inference pipeline (intent classification, query rewriting, etc.)")
+    user_feedback: Optional[str] = Field(None, description="Optional user feedback on previous answer")
+
+
+class Citation(BaseModel):
+    """Citation reference model."""
+    index: str = Field(..., description="Citation index")
+    title: str = Field(..., description="Document title")
+    url: str = Field(..., description="Document URL or path")
+
+
+class InferenceResponse(BaseModel):
+    """Response model for inference-enhanced chat completion."""
+    answer: Optional[str] = Field(None, description="The generated answer (if available)")
+    question: Optional[str] = Field(None, description="Clarifying question (if answer not available)")
+    intent: str = Field(..., description="Detected intent")
+    confidence: float = Field(..., description="Intent confidence score")
+    citations: List[Citation] = Field(default_factory=list, description="Source citations")
+    telemetry: dict = Field(default_factory=dict, description="Telemetry data")
 
 
 class Source(BaseModel):
@@ -143,15 +162,16 @@ async def health_check():
 @app.post("/chat", response_model=ChatResponse)
 async def chat_completion(request: ChatRequest):
     """
-    Chat completion endpoint.
+    Chat completion endpoint (legacy mode).
     
     Accepts a chat message and returns an answer with source references.
+    Uses the original RAG pipeline without inference enhancements.
     """
     if rag_engine is None:
         raise HTTPException(status_code=503, detail="RAG engine not initialized")
     
     try:
-        logger.info(f"Processing chat request: {request.message[:100]}...")
+        logger.info(f"Processing chat request (legacy): {request.message[:100]}...")
         result = rag_engine.query(request.message, request.additional_documents)
         logger.info(f"Generated answer with {len(result['sources'])} sources")
         
@@ -170,6 +190,61 @@ async def chat_completion(request: ChatRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
+@app.post("/chat/inference", response_model=InferenceResponse)
+async def chat_inference(request: ChatRequest):
+    """
+    Chat completion endpoint with inference pipeline.
+    
+    Accepts a chat message and returns an answer or clarifying question with:
+    - Intent classification
+    - Query rewriting
+    - Retrieval routing
+    - Intent-specific answer formatting
+    - Citations and telemetry
+    
+    To toggle this feature on/off, set request.use_inference or use environment variable.
+    """
+    if rag_engine is None:
+        raise HTTPException(status_code=503, detail="RAG engine not initialized")
+    
+    try:
+        logger.info(f"Processing inference request: {request.message[:100]}...")
+        
+        # Process with inference pipeline
+        result = rag_engine.query_with_inference(
+            question=request.message,
+            use_inference=request.use_inference,
+            user_feedback=request.user_feedback,
+        )
+        
+        logger.info(
+            f"Inference result - Intent: {result['intent']}, "
+            f"Confidence: {result['confidence']:.2f}, "
+            f"Answer: {result['answer'] is not None}"
+        )
+        
+        # Convert citations
+        citations = [Citation(**c) for c in result.get("citations", [])]
+        
+        return InferenceResponse(
+            answer=result.get("answer"),
+            question=result.get("question"),
+            intent=result["intent"],
+            confidence=result["confidence"],
+            citations=citations,
+            telemetry=result.get("telemetry", {}),
+        )
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        logger.error(f"Value error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error processing inference request: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
 @app.get("/")
 async def root():
     """Root endpoint - provides basic information."""
@@ -178,7 +253,15 @@ async def root():
         "version": "0.1.0",
         "endpoints": {
             "health": "/health",
-            "chat": "/chat",
+            "chat": "/chat (legacy mode)",
+            "chat_inference": "/chat/inference (with intent classification & query rewriting)",
             "docs": "/docs",
+        },
+        "features": {
+            "inference_pipeline": "Intent classification, query rewriting, retrieval routing, grounded synthesis",
+            "intents_supported": [
+                "how_to", "bug_resolution", "tool_explanation",
+                "escalate_or_ticket", "chitchat", "other"
+            ],
         }
     }
