@@ -283,19 +283,65 @@ Place PDF or DOCX files in the `documents/` folder. The runtime will automatical
 
 ### OneNote Document Support
 
-AtlasAI automatically converts OneNote (.one) files to PDF format for better text extraction and processing.
+AtlasAI provides a **pure Python solution** for converting OneNote (.one) files to PDF format **without requiring Windows COM automation or OneNote installation**. This makes it cross-platform compatible and fully automated.
 
 **How it works:**
 - On startup, the application scans the configured OneNote runbook path for .one files
-- All .one files are converted to PDF format and saved in `documents/runbook/` folder
-- The converted PDFs are automatically loaded into the RAG context
+- All .one files are converted to PDF format using the built-in Python converter
+- Converted PDFs are saved in the `documents/runbook/` folder
+- The PDFs are automatically loaded into the RAG context
 - The runbook folder is cleared and regenerated on each startup to ensure fresh conversions
+
+**Pure Python Conversion (No OneNote Required):**
+The conversion uses:
+- `pyOneNote` library to parse the OneNote file structure
+- `reportlab` library to generate searchable PDF documents
+- Works on Windows, Linux, and macOS
+- No COM automation or OneNote installation needed
+
+**Manual Conversion Options:**
+
+You can also convert OneNote files manually using the provided script:
+
+```bash
+# Convert a single file
+python convert_onenote.py input.one output.pdf
+
+# Convert an entire directory
+python convert_onenote.py input_dir/ output_dir/ --directory
+
+# Convert with verbose logging
+python convert_onenote.py input.one output.pdf --verbose
+
+# Show conversion capabilities
+python convert_onenote.py --info
+```
+
+**Programmatic Usage:**
+
+```python
+from atlasai_runtime.onenote_converter import (
+    convert_onenote_to_pdf,
+    batch_convert_onenote_to_pdf,
+    convert_onenote_directory
+)
+
+# Convert single file
+convert_onenote_to_pdf("notes.one", "notes.pdf", verbose=True)
+
+# Batch convert multiple files
+files = ["notes1.one", "notes2.one", "notes3.one"]
+results = batch_convert_onenote_to_pdf(files, "output_dir/")
+
+# Convert entire directory
+count = convert_onenote_directory("onenote_files/", "pdf_output/")
+```
 
 **Configuration:**
 - Set `ATLASAI_ONENOTE_RUNBOOK_PATH` environment variable to point to your OneNote files directory
 - Default path: `\\sce\workgroup\TDBU2\TD-PSC\PSC-DMS-ADV-APP\ADMS Operation & Maintenance Docs\Model Manager Runbook`
 
-**Note**: The conversion extracts metadata, properties, and embedded file information from OneNote files. While this provides searchable content, it may not preserve the exact visual layout of the original notes.
+**Note**: The conversion extracts metadata, properties, and embedded file information from OneNote files. While this provides searchable content, it may not preserve the exact visual layout of the original notes. This is a limitation of the OneNote file format's complexity, but the pure Python approach ensures cross-platform compatibility without external dependencies.
 
 ## Troubleshooting
 
